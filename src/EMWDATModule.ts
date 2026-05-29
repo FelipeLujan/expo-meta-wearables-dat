@@ -4,6 +4,7 @@ import { Platform } from "react-native";
 import type {
   CameraFacing,
   Device,
+  DisplayContentNode,
   EMWDATModuleEvents,
   LogLevel,
   MockDeviceKitConfig,
@@ -32,7 +33,7 @@ declare class EMWDATNativeModule extends NativeModule<EMWDATModuleEvents> {
   getDevice(identifier: string): Promise<Device | null>;
 
   // Session-based streaming
-  createSession(deviceId?: string): Promise<string>;
+  createSession(deviceId?: string, displayCapableOnly?: boolean): Promise<string>;
   startSession(sessionId: string): Promise<void>;
   stopSession(sessionId: string): Promise<void>;
   addStreamToSession(sessionId: string, config: Partial<StreamSessionConfig>): Promise<void>;
@@ -57,6 +58,11 @@ declare class EMWDATNativeModule extends NativeModule<EMWDATModuleEvents> {
   mockDeviceSetCameraFeedFromCamera(id: string, facing: string): Promise<void>;
   mockSetPermissionStatus(permission: string, status: string): Promise<void>;
   mockSetPermissionRequestResult(permission: string, result: string): Promise<void>;
+
+  // Display
+  addDisplayToSession(sessionId: string): Promise<void>;
+  removeDisplayFromSession(sessionId: string): Promise<void>;
+  sendDisplayContent(sessionId: string, contentTree: DisplayContentNode): Promise<void>;
 }
 
 /** The native EMWDAT module instance. */
@@ -141,9 +147,15 @@ export async function getDevice(identifier: string): Promise<Device | null> {
 // Session-based streaming
 // =============================================================================
 
-/** Create a new device session. Returns a sessionId. Optionally target a specific device. */
-export async function createSession(deviceId?: string): Promise<string> {
-  return EMWDATModule.createSession(deviceId);
+/**
+ * Create a new device session. Returns a sessionId.
+ * Pass `displayCapableOnly: true` (without deviceId) to auto-select Meta Ray-Ban Display glasses.
+ */
+export async function createSession(
+  deviceId?: string,
+  displayCapableOnly?: boolean
+): Promise<string> {
+  return EMWDATModule.createSession(deviceId, displayCapableOnly);
 }
 
 /** Start a previously created session. Connects to the device. */
@@ -270,4 +282,30 @@ export async function mockSetPermissionRequestResult(
   result: PermissionStatus
 ): Promise<void> {
   return EMWDATModule.mockSetPermissionRequestResult(permission, result);
+}
+
+// =============================================================================
+// Display
+// =============================================================================
+
+/** Attach a Display capability to a device session. Requires DAM to be enabled. */
+export async function addDisplayToSession(sessionId: string): Promise<void> {
+  return EMWDATModule.addDisplayToSession(sessionId);
+}
+
+/** Remove the Display capability from a session. */
+export async function removeDisplayFromSession(sessionId: string): Promise<void> {
+  return EMWDATModule.removeDisplayFromSession(sessionId);
+}
+
+/**
+ * Send a UI content tree to the display. The root node must be a `flexBox`.
+ * Native layer auto-attaches the display capability when missing, waits for
+ * session/display readiness, then sends (DisplayAccess send() pattern).
+ */
+export async function sendDisplayContent(
+  sessionId: string,
+  contentTree: DisplayContentNode
+): Promise<void> {
+  return EMWDATModule.sendDisplayContent(sessionId, contentTree);
 }

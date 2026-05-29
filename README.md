@@ -5,7 +5,7 @@
 [![license](https://img.shields.io/npm/l/expo-meta-wearables-dat)](./LICENSE)
 ![platform: iOS | Android](https://img.shields.io/badge/platform-iOS%20%7C%20Android-blue)
 
-Expo native module for integrating **Meta Wearables DAT** (Ray-Ban Meta smart glasses) into React Native apps. Provides device registration, permissions, session-based camera streaming, photo capture, and a React hook — bridged from the official Meta Wearables DAT SDK 0.6 on both iOS and Android.
+Expo native module for integrating **Meta Wearables DAT** (Ray-Ban Meta smart glasses) into React Native apps. Provides device registration, permissions, session-based camera streaming, photo capture, Display capability for Meta Ray-Ban Display glasses, and a React hook — bridged from the official Meta Wearables DAT SDK 0.7 on both iOS and Android.
 
 > **Official SDK docs:** [Meta Wearables DAT — Developer Documentation](https://wearables.developer.meta.com/docs/develop)
 >
@@ -26,9 +26,10 @@ Expo native module for integrating **Meta Wearables DAT** (Ray-Ban Meta smart gl
 - Session-based camera streaming with native view
 - Compressed HEVC video streaming (Android)
 - Photo capture (JPEG / HEIC)
+- **Display capability** — render declarative UI content trees on Meta Ray-Ban Display glasses (DAT 0.7+)
 - `useMetaWearables` React hook with full state management
 - Mock device simulation for testing (debug builds) with permission mocking and phone camera feed
-- Expo config plugin (auto-configures Info.plist, AndroidManifest, URL schemes, deployment target)
+- Expo config plugin (auto-configures Info.plist, AndroidManifest, URL schemes, deployment target, DAM)
 
 ## Compatibility
 
@@ -36,18 +37,18 @@ Expo native module for integrating **Meta Wearables DAT** (Ray-Ban Meta smart gl
 | ---------------- | -------- |
 | React Native     | 0.76+    |
 | Expo SDK         | 52+      |
-| iOS              | 16.0+    |
+| iOS              | 17.0+    |
 | Android          | API 31+  |
 | Xcode            | 16+      |
 | Swift            | 5.9+     |
-| DAT SDK          | 0.6      |
+| DAT SDK          | 0.7      |
 | New Architecture | Untested |
 
 ## Supported Devices
 
 - Ray-Ban Meta (verified)
 - Ray-Ban Meta Optics (untested)
-- Meta Ray-Ban Display (untested)
+- **Meta Ray-Ban Display** (Display capability requires DAT 0.7, Meta AI V272+, firmware V125+)
 - Oakley Meta HSTN / Vanguard (untested)
 
 ## Installation
@@ -98,6 +99,7 @@ Add the plugin to your `app.json` / `app.config.js`:
 | `clientToken`               | No       | Client Token from Wearables Developer Center                                                                  |
 | `bluetoothUsageDescription` | No       | Custom Bluetooth usage description (iOS only)                                                                 |
 | `githubToken`               | No       | GitHub token for Maven packages (Android). Falls back to `GITHUB_TOKEN` env var                               |
+| `damEnabled`                | No       | Enable the Device Access Toolkit App Model (DAM). **Required for Display capability.** Default: `false`       |
 
 ### iOS
 
@@ -109,10 +111,8 @@ The plugin automatically configures:
 - `UIBackgroundModes` (`bluetooth-peripheral`, `external-accessory`)
 - `NSBluetoothAlwaysUsageDescription`
 - `MWDAT` configuration dictionary (including `TeamID` auto-resolved from Xcode's `DEVELOPMENT_TEAM` signing setting)
-- iOS deployment target to 16.0
+- iOS deployment target to 17.0
 - Embeds MWDATCamera & MWDATCore dynamic frameworks
-
-> **Note:** The native Meta Wearables DAT iOS SDK states iOS 17.0+ as its minimum. The podspec targets 16.0 and builds successfully, but runtime behavior on iOS 16 devices is unverified. We recommend iOS 17.0+ for production use.
 
 ### Android
 
@@ -197,7 +197,11 @@ export default function App() {
       <Button title="Stop Stream" onPress={handleStopStream} />
       <Button title="Capture Photo" onPress={() => capturePhoto("jpeg")} />
 
-      <EMWDATStreamView isActive={!!sessionId} resizeMode="contain" style={{ flex: 1 }} />
+      <EMWDATStreamView
+        isActive={!!sessionId}
+        resizeMode="contain"
+        style={{ flex: 1 }}
+      />
     </View>
   );
 }
@@ -371,10 +375,60 @@ Key types exported from the package:
 - `MockDeviceKitConfig` — `{ initiallyRegistered?, initialPermissionsGranted? }`
 - `CaptureError` — `"deviceDisconnected"` \| `"notStreaming"` \| `"captureInProgress"` \| `"captureFailed"`
 - `StreamViewResizeMode` — `"contain"` \| `"cover"` \| `"stretch"`
+- `DisplayState` — `"stopped"` \| `"starting"` \| `"started"` \| `"stopping"`
+- `DisplayErrorCode` — error codes for display operations
+- `DisplayContentNode` — discriminated union for the JSON UI content tree (`flexBox`, `text`, `button`, `image`, `icon`)
 - `EMWDATPluginProps` — Config plugin options
 - Error code types: `WearablesErrorCode`, `RegistrationErrorCode`, `UnregistrationErrorCode`, `PermissionErrorCode`, `DecoderError`
 
 See [`src/EMWDAT.types.ts`](./src/EMWDAT.types.ts) for the full list.
+
+### Display API (DAT 0.7+)
+
+Requires `damEnabled: true` in the config plugin and **Meta Ray-Ban Display glasses** with Meta AI V272+ and firmware V125+. MockDeviceKit does **not** simulate display rendering.
+
+```ts
+import {
+  createSession,
+  startSession,
+  sendDisplayContent,
+  removeDisplayFromSession,
+} from "expo-meta-wearables-dat";
+
+// After configure() + registration...
+const sessionId = await createSession(deviceId, /* displayCapableOnly */ true);
+await startSession(sessionId);
+
+// Native layer auto-attaches display, waits for readiness, then sends
+await sendDisplayContent(sessionId, {
+  type: "flexBox",
+  direction: "column",
+  gap: 12,
+  paddingAll: 16,
+  children: [
+    { type: "text", content: "Hello, glasses!", style: "heading" },
+    {
+      type: "button",
+      label: "Continue",
+      style: "primary",
+      onPressId: "btn-continue",
+    },
+  ],
+});
+
+addListener("onDisplayInteraction", ({ interactionId }) => {
+  console.log("User tapped:", interactionId);
+});
+```
+
+| Function                       | Description                                                                 |
+| ------------------------------ | --------------------------------------------------------------------------- |
+| `createSession(id?, displayCapableOnly?)` | Create session; pass `displayCapableOnly: true` to auto-select display glasses |
+| `addDisplayToSession(id)`      | Explicitly attach Display (optional — `sendDisplayContent` does this)     |
+| `removeDisplayFromSession(id)` | Detach Display; session stays active; next send re-attaches                 |
+| `sendDisplayContent(id, tree)` | Auto-attach, wait for ready, render `DisplayContentNode` tree on lenses    |
+
+**`DisplayContentNode` types:** `flexBox` (layout container), `text` (label), `button` (tappable), `image` (bitmap), `icon` (SDK icon).
 
 ### Mock Device API (Testing)
 
@@ -437,6 +491,7 @@ The `example/` directory contains a full demo app:
    ```
 
    Edit `app.json` and replace the placeholders:
+
    - `YOUR_APPLE_TEAM_ID` — your Apple Developer Team ID
    - `YOUR_META_APP_ID` — from the [Meta Wearables Developer Center](https://wearables.developer.meta.com/)
    - `YOUR_CLIENT_TOKEN` — from the same Developer Center page
@@ -480,10 +535,10 @@ The `example/` directory contains a full demo app:
 
 ### Pod install fails / autolinking skips EMWDAT
 
-Ensure iOS deployment target is 16.0. The config plugin sets this automatically, but if you ran `expo prebuild --clean`, check that `ios/Podfile.properties.json` contains:
+Ensure iOS deployment target is 17.0. The config plugin sets this automatically, but if you ran `expo prebuild --clean`, check that `ios/Podfile.properties.json` contains:
 
 ```json
-{ "ios.deploymentTarget": "16.0" }
+{ "ios.deploymentTarget": "17.0" }
 ```
 
 ### `MWDATCamera` / `MWDATCore` framework not found at runtime

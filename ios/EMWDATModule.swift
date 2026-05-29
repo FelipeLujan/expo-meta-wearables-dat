@@ -1,6 +1,7 @@
 import ExpoModulesCore
 import MWDATCore
 import MWDATCamera
+import MWDATDisplay
 
 public class EMWDATModule: Module {
     private let logger = EMWDATLogger.shared
@@ -20,7 +21,10 @@ public class EMWDATModule: Module {
             "onCompatibilityChange",
             "onDeviceSessionStateChange",
             "onDeviceSessionError",
-            "onCapabilityStateChange"
+            "onCapabilityStateChange",
+            "onDisplayStateChange",
+            "onDisplayInteraction",
+            "onDisplayError"
         )
 
         // MARK: - Lifecycle
@@ -33,12 +37,14 @@ public class EMWDATModule: Module {
                 }
                 WearablesManager.shared.setEventEmitter(emitter)
                 StreamSessionManager.shared.setEventEmitter(emitter)
+                DisplaySessionManager.shared.setEventEmitter(emitter)
             }
         }
 
         OnDestroy {
             self.logger.info("Module", "Module destroyed")
             Task { @MainActor in
+                DisplaySessionManager.shared.destroy()
                 StreamSessionManager.shared.destroy()
                 WearablesManager.shared.cleanup()
             }
@@ -191,10 +197,13 @@ public class EMWDATModule: Module {
 
         // MARK: - Session Management
 
-        AsyncFunction("createSession") { (deviceId: String?, promise: Promise) in
+        AsyncFunction("createSession") { (deviceId: String?, displayCapableOnly: Bool?, promise: Promise) in
             Task { @MainActor in
                 do {
-                    let sessionId = try WearablesManager.shared.createSession(deviceId: deviceId)
+                    let sessionId = try WearablesManager.shared.createSession(
+                        deviceId: deviceId,
+                        displayCapableOnly: displayCapableOnly ?? false
+                    )
                     promise.resolve(sessionId)
                 } catch {
                     promise.reject("SESSION_CREATE_FAILED", error.localizedDescription)
@@ -442,6 +451,37 @@ public class EMWDATModule: Module {
             }
         }
         #endif
+
+        // MARK: - Display
+
+        AsyncFunction("addDisplayToSession") { (sessionId: String, promise: Promise) in
+            Task { @MainActor in
+                do {
+                    try await DisplaySessionManager.shared.addDisplayToSession(sessionId: sessionId)
+                    promise.resolve(nil)
+                } catch {
+                    promise.reject("DISPLAY_ADD_FAILED", error.localizedDescription)
+                }
+            }
+        }
+
+        AsyncFunction("removeDisplayFromSession") { (sessionId: String, promise: Promise) in
+            Task { @MainActor in
+                await DisplaySessionManager.shared.removeDisplayFromSession(sessionId: sessionId)
+                promise.resolve(nil)
+            }
+        }
+
+        AsyncFunction("sendDisplayContent") { (sessionId: String, contentTree: [String: Any], promise: Promise) in
+            Task { @MainActor in
+                do {
+                    try await DisplaySessionManager.shared.sendDisplayContent(sessionId: sessionId, contentTree: contentTree)
+                    promise.resolve(nil)
+                } catch {
+                    promise.reject("DISPLAY_SEND_FAILED", error.localizedDescription)
+                }
+            }
+        }
 
         // MARK: - View
 

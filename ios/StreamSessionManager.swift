@@ -16,7 +16,7 @@ public final class StreamSessionManager {
     // MARK: - State
 
     /// Active stream sessions keyed by sessionId
-    private var streams: [String: StreamSession] = [:]
+    private var streams: [String: MWDATCamera.Stream] = [:]
     private var stateTokens: [String: AnyListenerToken] = [:]
     private var frameTokens: [String: AnyListenerToken] = [:]
     private var errorTokens: [String: AnyListenerToken] = [:]
@@ -54,7 +54,7 @@ public final class StreamSessionManager {
     // MARK: - Stream Capability Control
 
     /// Add a camera stream capability to a device session and start streaming.
-    public func addStreamToSession(sessionId: String, config: StreamSessionConfig) async throws {
+    public func addStreamToSession(sessionId: String, config: StreamConfiguration) async throws {
         guard let session = WearablesManager.shared.getSession(sessionId: sessionId) else {
             throw StreamSessionManagerError.sessionNotFound(sessionId)
         }
@@ -106,7 +106,7 @@ public final class StreamSessionManager {
             }
         }
 
-        // Start the stream (required in SDK v0.6)
+        // Start the stream
         await streamSession.start()
 
         // Emit initial capability state
@@ -147,7 +147,7 @@ public final class StreamSessionManager {
 
     // MARK: - Event Handlers
 
-    private func handleStateChange(sessionId: String, state: StreamSessionState) {
+    private func handleStateChange(sessionId: String, state: StreamState) {
         logger.info("StreamSession", "State changed", context: [
             "sessionId": sessionId,
             "state": String(describing: state)
@@ -183,7 +183,7 @@ public final class StreamSessionManager {
         ])
     }
 
-    private func handleError(sessionId: String, error: StreamSessionError) {
+    private func handleError(sessionId: String, error: StreamError) {
         logger.error("StreamSession", "Stream error", context: [
             "sessionId": sessionId,
             "error": String(describing: error)
@@ -253,7 +253,7 @@ public final class StreamSessionManager {
 
     // MARK: - Mapping Helpers
 
-    private func mapStreamState(_ state: StreamSessionState) -> String {
+    private func mapStreamState(_ state: StreamState) -> String {
         switch state {
         case .stopping: return "stopping"
         case .stopped: return "stopped"
@@ -265,8 +265,8 @@ public final class StreamSessionManager {
         }
     }
 
-    /// Maps StreamSessionError to a dictionary matching the TS discriminated union
-    private func mapStreamErrorToDict(_ error: StreamSessionError) -> [String: Any] {
+    /// Maps StreamError to a dictionary matching the TS discriminated union
+    private func mapStreamErrorToDict(_ error: StreamError) -> [String: Any] {
         switch error {
         case .deviceNotFound(let deviceId):
             return ["type": "deviceNotFound", "deviceId": deviceId]
@@ -284,6 +284,12 @@ public final class StreamSessionManager {
             return ["type": "hingesClosed"]
         case .thermalCritical:
             return ["type": "thermalCritical"]
+        case .thermalEmergency:
+            return ["type": "thermalEmergency"]
+        case .peakPowerShutdown:
+            return ["type": "peakPowerShutdown"]
+        case .batteryCritical:
+            return ["type": "batteryCritical"]
         @unknown default:
             return ["type": "internalError"]
         }
@@ -302,7 +308,7 @@ public final class StreamSessionManager {
 
 extension StreamSessionManager {
     /// Parse configuration from JavaScript object
-    nonisolated public static func parseConfig(from dict: [String: Any]) -> StreamSessionConfig {
+    nonisolated public static func parseConfig(from dict: [String: Any]) -> StreamConfiguration {
         let videoCodec: VideoCodec
         let compressVideo = dict["compressVideo"] as? Bool ?? false
         if compressVideo || (dict["videoCodec"] as? String) == "hvc1" {
@@ -323,13 +329,11 @@ extension StreamSessionManager {
         }
 
         let frameRate = dict["frameRate"] as? Int ?? 15
-        let skipAppLaunch = dict["skipAppLaunch"] as? Bool ?? false
 
-        return StreamSessionConfig(
+        return StreamConfiguration(
             videoCodec: videoCodec,
             resolution: resolution,
-            frameRate: UInt(frameRate),
-            skipAppLaunch: skipAppLaunch
+            frameRate: UInt(frameRate)
         )
     }
 }

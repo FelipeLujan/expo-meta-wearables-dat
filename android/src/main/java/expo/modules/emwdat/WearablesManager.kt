@@ -3,9 +3,9 @@ package expo.modules.emwdat
 import android.app.Activity
 import android.content.Context
 import com.meta.wearable.dat.core.Wearables
+import com.meta.wearable.dat.core.session.DeviceSession
 import com.meta.wearable.dat.core.session.DeviceSessionState
-import com.meta.wearable.dat.core.session.Session
-import com.meta.wearable.dat.core.session.SessionError
+import com.meta.wearable.dat.core.types.DeviceSessionError
 import com.meta.wearable.dat.core.selectors.AutoDeviceSelector
 import com.meta.wearable.dat.core.selectors.SpecificDeviceSelector
 import com.meta.wearable.dat.core.types.DeviceCompatibility
@@ -37,7 +37,7 @@ object WearablesManager {
     private var deviceMetadataJobs: MutableMap<DeviceIdentifier, Job> = mutableMapOf()
 
     // Device sessions
-    private val sessions: MutableMap<String, Session> = mutableMapOf()
+    private val sessions: MutableMap<String, DeviceSession> = mutableMapOf()
     private val sessionStateJobs: MutableMap<String, Job> = mutableMapOf()
     private val sessionErrorJobs: MutableMap<String, Job> = mutableMapOf()
 
@@ -169,7 +169,7 @@ object WearablesManager {
 
     // MARK: - Session Management
 
-    fun createSession(deviceId: String?): String {
+    fun createSession(deviceId: String?, displayCapableOnly: Boolean = false): String {
         if (!isConfigured) {
             throw IllegalStateException("Wearables SDK has not been configured. Call configure() first.")
         }
@@ -177,26 +177,34 @@ object WearablesManager {
         val deviceSelector = if (deviceId != null) {
             logger.info("Manager", "Creating session for device", mapOf("deviceId" to deviceId))
             SpecificDeviceSelector(DeviceIdentifier(deviceId))
+        } else if (displayCapableOnly) {
+            logger.info("Manager", "Creating session with display-capable auto selector")
+            AutoDeviceSelector(filter = { device -> device.supportsDisplay() })
         } else {
             logger.info("Manager", "Creating session with auto device selector")
             AutoDeviceSelector()
         }
 
-        val session = Wearables.createSession(deviceSelector)
+        var session: DeviceSession? = null
+        Wearables.createSession(deviceSelector).fold(
+            onSuccess = { s -> session = s },
+            onFailure = { error -> throw Exception("Failed to create session: $error") }
+        )
+        val activeSession = session ?: throw Exception("Failed to create session")
         val sessionId = UUID.randomUUID().toString()
-        sessions[sessionId] = session
+        sessions[sessionId] = activeSession
 
         // Collect session state
         val currentScope = this.scope ?: throw IllegalStateException("Module scope not available")
         sessionStateJobs[sessionId] = currentScope.launch {
-            session.state.collect { state ->
+            activeSession.state.collect { state ->
                 handleSessionStateChange(sessionId, state)
             }
         }
 
         // Collect session errors
         sessionErrorJobs[sessionId] = currentScope.launch {
-            session.errors.collect { error ->
+            activeSession.errors.collect { error ->
                 handleSessionError(sessionId, error)
             }
         }
@@ -217,9 +225,10 @@ object WearablesManager {
             ?: throw IllegalArgumentException("Session not found: $sessionId")
         logger.info("Manager", "Stopping session", mapOf("sessionId" to sessionId))
         session.stop()
+        removeSession(sessionId)
     }
 
-    fun getSession(sessionId: String): Session? = sessions[sessionId]
+    fun getSession(sessionId: String): DeviceSession? = sessions[sessionId]
 
     fun removeSession(sessionId: String) {
         sessionStateJobs[sessionId]?.cancel()
@@ -241,14 +250,9 @@ object WearablesManager {
             "sessionId" to sessionId,
             "state" to mapped
         ))
-
-        // Auto-clean stopped sessions
-        if (state == DeviceSessionState.STOPPED) {
-            removeSession(sessionId)
-        }
     }
 
-    private fun handleSessionError(sessionId: String, error: SessionError) {
+    private fun handleSessionError(sessionId: String, error: DeviceSessionError) {
         val mapped = mapSessionError(error)
         logger.error("Manager", "Session error", mapOf(
             "sessionId" to sessionId,
@@ -371,17 +375,17 @@ object WearablesManager {
     }
 
     private fun mapRegistrationState(state: RegistrationState): String = when (state) {
-        is RegistrationState.Unavailable -> "unavailable"
-        is RegistrationState.Available -> "available"
-        is RegistrationState.Registering -> "registering"
-        is RegistrationState.Registered -> "registered"
-        is RegistrationState.Unregistering -> "unavailable"
+        RegistrationState.UNAVAILABLE -> "unavailable"
+        RegistrationState.AVAILABLE -> "available"
+        RegistrationState.REGISTERING -> "registering"
+        RegistrationState.REGISTERED -> "registered"
+        RegistrationState.UNREGISTERING -> "unavailable"
         else -> "unavailable"
     }
 
     private fun mapPermissionStatus(status: PermissionStatus): String = when (status) {
-        is PermissionStatus.Granted -> "granted"
-        is PermissionStatus.Denied -> "denied"
+        PermissionStatus.GRANTED -> "granted"
+        PermissionStatus.DENIED -> "denied"
         else -> "denied"
     }
 
@@ -412,9 +416,13 @@ object WearablesManager {
         DeviceSessionState.STOPPED -> "stopped"
     }
 
-    private fun mapSessionError(error: SessionError): String = when (error) {
-        SessionError.DEVICE_DISCONNECTED -> "noEligibleDevice"
-        SessionError.DEVICE_POWERED_OFF -> "noEligibleDevice"
+    private fun mapSessionError(error: DeviceSessionError): String = when (error) {
+        DeviceSessionError.NO_ELIGIBLE_DEVICE -> "noEligibleDevice"
+        DeviceSessionError.SESSION_ALREADY_EXISTS -> "sessionAlreadyExists"
+        DeviceSessionError.SESSION_ALREADY_STOPPED -> "sessionAlreadyStopped"
+        DeviceSessionError.SESSION_IDLE -> "sessionIdle"
+        DeviceSessionError.CAPABILITY_ALREADY_ACTIVE -> "capabilityAlreadyActive"
+        DeviceSessionError.CAPABILITY_NOT_FOUND -> "capabilityNotFound"
         else -> "unexpectedError"
     }
 
