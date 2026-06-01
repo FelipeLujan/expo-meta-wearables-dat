@@ -11,6 +11,7 @@ import type {
   Permission,
   PermissionStatus,
   PhotoCaptureFormat,
+  WearablesAudioSessionStatus,
   RegistrationState,
   StreamSessionConfig,
 } from "./EMWDAT.types";
@@ -29,6 +30,10 @@ declare class EMWDATNativeModule extends NativeModule<EMWDATModuleEvents> {
   handleUrl(url: string): Promise<boolean>;
   checkPermissionStatus(permission: string): Promise<string>;
   requestPermission(permission: string): Promise<string>;
+  configureWearablesAudioSession(): Promise<WearablesAudioSessionStatus>;
+  activateWearablesAudioSession(): Promise<WearablesAudioSessionStatus>;
+  deactivateWearablesAudioSession(): Promise<void>;
+  isWearablesAudioSessionActive(): boolean;
   getDevices(): Promise<Device[]>;
   getDevice(identifier: string): Promise<Device | null>;
 
@@ -131,6 +136,32 @@ export async function checkPermissionStatus(permission: Permission): Promise<Per
 /** Request a permission from the user. Returns the resulting status. */
 export async function requestPermission(permission: Permission): Promise<PermissionStatus> {
   return (await EMWDATModule.requestPermission(permission)) as PermissionStatus;
+}
+
+/**
+ * Prepare the platform audio session for glasses voice (HFP). Call before activate when using mic.
+ * On iOS sets AVAudioSession playAndRecord with Bluetooth; on Android checks RECORD_AUDIO state.
+ */
+export async function configureWearablesAudioSession(): Promise<WearablesAudioSessionStatus> {
+  return EMWDATModule.configureWearablesAudioSession();
+}
+
+/**
+ * Activate HFP routing to connected glasses. Prefer calling {@link configureWearablesAudioSession} first.
+ * When combining with camera streaming, configure/activate audio before starting the stream.
+ */
+export async function activateWearablesAudioSession(): Promise<WearablesAudioSessionStatus> {
+  return EMWDATModule.activateWearablesAudioSession();
+}
+
+/** Release the HFP audio session and clear Bluetooth SCO routing. */
+export async function deactivateWearablesAudioSession(): Promise<void> {
+  return EMWDATModule.deactivateWearablesAudioSession();
+}
+
+/** Whether {@link activateWearablesAudioSession} is currently active. */
+export function isWearablesAudioSessionActive(): boolean {
+  return EMWDATModule.isWearablesAudioSessionActive();
 }
 
 /** Return all registered Meta Wearables devices. */

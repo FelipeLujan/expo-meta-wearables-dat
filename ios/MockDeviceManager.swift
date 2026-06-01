@@ -145,10 +145,7 @@ public final class MockDeviceManager {
     }
 
     private func mapPermission(_ permission: String) -> Permission? {
-        switch permission {
-        case "camera": return .camera
-        default: return nil
-        }
+        WearablesManager.sdkPermission(from: permission)
     }
 
     private func mapPermissionStatus(_ status: String) -> PermissionStatus? {

@@ -19,9 +19,22 @@ export type RegistrationState = "unavailable" | "available" | "registering" | "r
 // PERMISSIONS
 // =============================================================================
 
-export type Permission = "camera";
+export type Permission = "camera" | "microphone";
 
 export type PermissionStatus = "granted" | "denied";
+
+/**
+ * Result from configuring or activating the platform audio session for glasses HFP.
+ * Configure AVAudioSession (iOS) / route to Bluetooth SCO (Android) before streaming with mic.
+ */
+export interface WearablesAudioSessionStatus {
+  /** Whether the HFP audio session is active after activate(). */
+  active: boolean;
+  /** Android: whether audio was routed to a Bluetooth SCO device. */
+  routedToBluetooth?: boolean;
+  /** Whether the OS microphone permission is granted (RECORD_AUDIO / AVAudioSession). */
+  platformMicGranted?: boolean;
+}
 
 // =============================================================================
 // DEVICE
@@ -355,7 +368,12 @@ export interface UseMetaWearablesReturn {
   isConfiguring: boolean;
   configError: Error | null;
   registrationState: RegistrationState;
+  /** Camera permission via Meta AI (DAT Permission.CAMERA). */
   permissionStatus: PermissionStatus;
+  /** Microphone permission via Meta AI (DAT Permission.MICROPHONE). */
+  microphonePermissionStatus: PermissionStatus;
+  /** Whether {@link activateWearablesAudioSession} has routed HFP audio. */
+  isWearablesAudioActive: boolean;
   devices: Device[];
   deviceSessionStates: Record<string, DeviceSessionState>;
   deviceSessionErrors: Record<string, { error: DeviceSessionErrorCode; message?: string }>;
@@ -373,6 +391,11 @@ export interface UseMetaWearablesReturn {
   // Actions — permissions
   checkPermissionStatus: (permission: Permission) => Promise<PermissionStatus>;
   requestPermission: (permission: Permission) => Promise<PermissionStatus>;
+
+  // Actions — audio (HFP)
+  configureWearablesAudioSession: () => Promise<WearablesAudioSessionStatus>;
+  activateWearablesAudioSession: () => Promise<WearablesAudioSessionStatus>;
+  deactivateWearablesAudioSession: () => Promise<void>;
 
   // Actions — devices
   getDevice: (identifier: DeviceIdentifier) => Promise<Device | null>;
@@ -431,6 +454,8 @@ export interface EMWDATPluginProps {
   clientToken?: string;
   /** Custom NSBluetoothAlwaysUsageDescription */
   bluetoothUsageDescription?: string;
+  /** Custom NSMicrophoneUsageDescription for glasses HFP voice */
+  microphoneUsageDescription?: string;
   /** GitHub token for accessing Meta Wearables Maven packages. Falls back to GITHUB_TOKEN env var. */
   githubToken?: string;
   /** Enable the Device Access Toolkit App Model (DAM). Required for Display capability. Default: false. */

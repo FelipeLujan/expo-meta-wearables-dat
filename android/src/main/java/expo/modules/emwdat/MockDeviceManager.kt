@@ -162,10 +162,7 @@ object MockDeviceManager {
         }
     }
 
-    private fun mapPermission(permission: String): Permission? = when (permission) {
-        "camera" -> Permission.CAMERA
-        else -> null
-    }
+    private fun mapPermission(permission: String): Permission? = permissionFromString(permission)
 
     private fun mapPermissionStatus(status: String): PermissionStatus? = when (status) {
         "granted" -> PermissionStatus.Granted

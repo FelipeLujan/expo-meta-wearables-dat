@@ -151,13 +151,13 @@ public class EMWDATModule: Module {
         // MARK: - Permissions
 
         AsyncFunction("checkPermissionStatus") { (permission: String, promise: Promise) in
-            guard permission == "camera" else {
+            guard let sdkPermission = WearablesManager.sdkPermission(from: permission) else {
                 promise.resolve("denied")
                 return
             }
             Task { @MainActor in
                 do {
-                    let status = try await WearablesManager.shared.checkPermissionStatus(.camera)
+                    let status = try await WearablesManager.shared.checkPermissionStatus(sdkPermission)
                     promise.resolve(self.mapPermissionStatus(status))
                 } catch {
                     self.logger.error("Module", "checkPermissionStatus failed", error: error)
@@ -167,18 +167,57 @@ public class EMWDATModule: Module {
         }
 
         AsyncFunction("requestPermission") { (permission: String, promise: Promise) in
-            guard permission == "camera" else {
+            guard let sdkPermission = WearablesManager.sdkPermission(from: permission) else {
                 promise.reject("INVALID_PERMISSION", "Unknown permission: \(permission)")
                 return
             }
             Task { @MainActor in
                 do {
-                    let status = try await WearablesManager.shared.requestPermission(.camera)
+                    let status = try await WearablesManager.shared.requestPermission(sdkPermission)
                     promise.resolve(self.mapPermissionStatus(status))
                 } catch {
                     promise.reject("PERMISSION_FAILED", error.localizedDescription)
                 }
             }
+        }
+
+        // MARK: - Audio (HFP over Bluetooth)
+
+        AsyncFunction("configureWearablesAudioSession") { (promise: Promise) in
+            Task { @MainActor in
+                do {
+                    let result = try AudioSessionManager.shared.configure()
+                    promise.resolve(result)
+                } catch {
+                    promise.reject("AUDIO_SESSION_CONFIGURE_FAILED", error.localizedDescription)
+                }
+            }
+        }
+
+        AsyncFunction("activateWearablesAudioSession") { (promise: Promise) in
+            Task { @MainActor in
+                do {
+                    let result = try await AudioSessionManager.shared.activate()
+                    promise.resolve(result)
+                } catch {
+                    promise.reject("AUDIO_SESSION_ACTIVATE_FAILED", error.localizedDescription)
+                }
+            }
+        }
+
+        AsyncFunction("deactivateWearablesAudioSession") { (promise: Promise) in
+            Task { @MainActor in
+                do {
+                    try AudioSessionManager.shared.deactivate()
+                    promise.resolve(nil)
+                } catch {
+                    promise.reject("AUDIO_SESSION_DEACTIVATE_FAILED", error.localizedDescription)
+                }
+            }
+        }
+
+        Function("isWearablesAudioSessionActive") {
+            AudioSessionManager.shared.isActive
         }
 
         // MARK: - Devices

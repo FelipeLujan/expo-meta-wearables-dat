@@ -53,7 +53,10 @@ describe("Mock device kit lifecycle", () => {
 
   it("enableMockDeviceKit passes config", async () => {
     await expect(
-      enableMockDeviceKit({ initiallyRegistered: false, initialPermissionsGranted: false })
+      enableMockDeviceKit({
+        initiallyRegistered: false,
+        initialPermissionsGranted: false,
+      })
     ).resolves.toBeUndefined();
   });
 
@@ -130,6 +133,7 @@ describe("Mock device simulation", () => {
 describe("Mock permissions", () => {
   it("mockSetPermissionStatus resolves", async () => {
     await expect(mockSetPermissionStatus("camera", "granted")).resolves.toBeUndefined();
+    await expect(mockSetPermissionStatus("microphone", "granted")).resolves.toBeUndefined();
   });
 
   it("mockSetPermissionRequestResult resolves", async () => {

@@ -18,6 +18,10 @@ export {
   handleUrl,
   checkPermissionStatus,
   requestPermission,
+  configureWearablesAudioSession,
+  activateWearablesAudioSession,
+  deactivateWearablesAudioSession,
+  isWearablesAudioSessionActive,
   getDevices,
   getDevice,
   // Session-based streaming

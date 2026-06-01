@@ -36,6 +36,18 @@ class EMWDATWebModule extends NativeModule<EMWDATModuleEvents> {
   requestPermission(): Promise<string> {
     unsupported();
   }
+  configureWearablesAudioSession(): Promise<never> {
+    unsupported();
+  }
+  activateWearablesAudioSession(): Promise<never> {
+    unsupported();
+  }
+  deactivateWearablesAudioSession(): Promise<void> {
+    unsupported();
+  }
+  isWearablesAudioSessionActive(): boolean {
+    unsupported();
+  }
   getDevices(): Promise<never[]> {
     unsupported();
   }
@@ -162,6 +174,18 @@ export async function checkPermissionStatus(): Promise<never> {
   unsupported();
 }
 export async function requestPermission(): Promise<never> {
+  unsupported();
+}
+export async function configureWearablesAudioSession(): Promise<never> {
+  unsupported();
+}
+export async function activateWearablesAudioSession(): Promise<never> {
+  unsupported();
+}
+export async function deactivateWearablesAudioSession(): Promise<void> {
+  unsupported();
+}
+export function isWearablesAudioSessionActive(): boolean {
   unsupported();
 }
 export async function getDevices(): Promise<never[]> {

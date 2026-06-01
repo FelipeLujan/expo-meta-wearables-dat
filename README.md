@@ -21,7 +21,8 @@ Expo native module for integrating **Meta Wearables DAT** (Ray-Ban Meta smart gl
 ## Features
 
 - Device registration / unregistration via Meta AI app
-- Permission management (camera)
+- Permission management (camera, microphone)
+- Audio session helpers for glasses microphone/speaker (Bluetooth HFP)
 - Device discovery and link state monitoring
 - Session-based camera streaming with native view
 - Compressed HEVC video streaming (Android)
@@ -234,44 +235,49 @@ React hook that manages the full lifecycle of Meta Wearables integration.
 
 **Returned state:**
 
-| Field                 | Type                                  | Description                  |
-| --------------------- | ------------------------------------- | ---------------------------- |
-| `isConfigured`        | `boolean`                             | SDK configured               |
-| `isConfiguring`       | `boolean`                             | `true` while configuring     |
-| `configError`         | `Error \| null`                       | Error from last `configure`  |
-| `registrationState`   | `RegistrationState`                   | Registration lifecycle state |
-| `permissionStatus`    | `PermissionStatus`                    | `"granted"` \| `"denied"`    |
-| `devices`             | `Device[]`                            | Connected devices            |
-| `deviceSessionStates` | `Record<string, DeviceSessionState>`  | Per-session states           |
-| `deviceSessionErrors` | `Record<string, { error, message? }>` | Per-session errors           |
-| `capabilityStates`    | `Record<string, CapabilityState>`     | Per-session capability state |
+| Field                        | Type                                  | Description                        |
+| ---------------------------- | ------------------------------------- | ---------------------------------- |
+| `isConfigured`               | `boolean`                             | SDK configured                     |
+| `isConfiguring`              | `boolean`                             | `true` while configuring           |
+| `configError`                | `Error \| null`                       | Error from last `configure`        |
+| `registrationState`          | `RegistrationState`                   | Registration lifecycle state       |
+| `permissionStatus`           | `PermissionStatus`                    | Camera — `"granted"` \| `"denied"` |
+| `microphonePermissionStatus` | `PermissionStatus`                    | Microphone (Meta AI)               |
+| `isWearablesAudioActive`     | `boolean`                             | HFP audio session active           |
+| `devices`                    | `Device[]`                            | Connected devices                  |
+| `deviceSessionStates`        | `Record<string, DeviceSessionState>`  | Per-session states                 |
+| `deviceSessionErrors`        | `Record<string, { error, message? }>` | Per-session errors                 |
+| `capabilityStates`           | `Record<string, CapabilityState>`     | Per-session capability state       |
 
 **Returned actions:**
 
-| Action                              | Signature                                   | Description                        |
-| ----------------------------------- | ------------------------------------------- | ---------------------------------- |
-| `configure`                         | `() => Promise<void>`                       | Initialize SDK                     |
-| `setLogLevel`                       | `(level: LogLevel) => void`                 | Change log level                   |
-| `startRegistration`                 | `() => Promise<void>`                       | Open Meta AI app for registration  |
-| `startUnregistration`               | `() => Promise<void>`                       | Unregister from Meta AI            |
-| `checkPermissionStatus`             | `(permission) => Promise<PermissionStatus>` | Check permission                   |
-| `requestPermission`                 | `(permission) => Promise<PermissionStatus>` | Request permission                 |
-| `getDevice`                         | `(id) => Promise<Device \| null>`           | Get device by identifier           |
-| `refreshDevices`                    | `() => Promise<Device[]>`                   | Refresh device list                |
-| `createSession`                     | `(deviceId?) => Promise<string>`            | Create a device session            |
-| `startSession`                      | `(sessionId) => Promise<void>`              | Start a session                    |
-| `stopSession`                       | `(sessionId) => Promise<void>`              | Stop a session (terminal)          |
-| `addStreamToSession`                | `(sessionId, config?) => Promise<void>`     | Attach camera stream capability    |
-| `removeStreamFromSession`           | `(sessionId) => Promise<void>`              | Remove stream capability           |
-| `capturePhoto`                      | `(format?) => Promise<void>`                | Capture photo                      |
-| `enableMockDeviceKit`               | `(config?) => Promise<void>`                | Enable mock device kit             |
-| `disableMockDeviceKit`              | `() => Promise<void>`                       | Disable mock device kit            |
-| `isMockDeviceKitEnabled`            | `() => Promise<boolean>`                    | Check if mock kit is enabled       |
-| `pairMockDevice`                    | `() => Promise<string>`                     | Pair a mock device                 |
-| `unpairMockDevice`                  | `(deviceId) => Promise<void>`               | Unpair a mock device               |
-| `mockSetPermissionStatus`           | `(permission, status) => Promise<void>`     | Set mock permission status         |
-| `mockSetPermissionRequestResult`    | `(permission, result) => Promise<void>`     | Set mock permission request result |
-| `mockDeviceSetCameraFeedFromCamera` | `(id, facing) => Promise<void>`             | Set mock camera from phone camera  |
+| Action                              | Signature                                    | Description                                       |
+| ----------------------------------- | -------------------------------------------- | ------------------------------------------------- |
+| `configure`                         | `() => Promise<void>`                        | Initialize SDK                                    |
+| `setLogLevel`                       | `(level: LogLevel) => void`                  | Change log level                                  |
+| `startRegistration`                 | `() => Promise<void>`                        | Open Meta AI app for registration                 |
+| `startUnregistration`               | `() => Promise<void>`                        | Unregister from Meta AI                           |
+| `checkPermissionStatus`             | `(permission) => Promise<PermissionStatus>`  | Check permission                                  |
+| `requestPermission`                 | `(permission) => Promise<PermissionStatus>`  | Request permission (`"camera"` \| `"microphone"`) |
+| `configureWearablesAudioSession`    | `() => Promise<WearablesAudioSessionStatus>` | Prepare AVAudioSession / check mic                |
+| `activateWearablesAudioSession`     | `() => Promise<WearablesAudioSessionStatus>` | Route audio to glasses (HFP)                      |
+| `deactivateWearablesAudioSession`   | `() => Promise<void>`                        | Release HFP session                               |
+| `getDevice`                         | `(id) => Promise<Device \| null>`            | Get device by identifier                          |
+| `refreshDevices`                    | `() => Promise<Device[]>`                    | Refresh device list                               |
+| `createSession`                     | `(deviceId?) => Promise<string>`             | Create a device session                           |
+| `startSession`                      | `(sessionId) => Promise<void>`               | Start a session                                   |
+| `stopSession`                       | `(sessionId) => Promise<void>`               | Stop a session (terminal)                         |
+| `addStreamToSession`                | `(sessionId, config?) => Promise<void>`      | Attach camera stream capability                   |
+| `removeStreamFromSession`           | `(sessionId) => Promise<void>`               | Remove stream capability                          |
+| `capturePhoto`                      | `(format?) => Promise<void>`                 | Capture photo                                     |
+| `enableMockDeviceKit`               | `(config?) => Promise<void>`                 | Enable mock device kit                            |
+| `disableMockDeviceKit`              | `() => Promise<void>`                        | Disable mock device kit                           |
+| `isMockDeviceKitEnabled`            | `() => Promise<boolean>`                     | Check if mock kit is enabled                      |
+| `pairMockDevice`                    | `() => Promise<string>`                      | Pair a mock device                                |
+| `unpairMockDevice`                  | `(deviceId) => Promise<void>`                | Unpair a mock device                              |
+| `mockSetPermissionStatus`           | `(permission, status) => Promise<void>`      | Set mock permission status                        |
+| `mockSetPermissionRequestResult`    | `(permission, result) => Promise<void>`      | Set mock permission request result                |
+| `mockDeviceSetCameraFeedFromCamera` | `(id, facing) => Promise<void>`              | Set mock camera from phone camera                 |
 
 ### Module Functions
 
@@ -287,6 +293,9 @@ import {
   handleUrl,
   checkPermissionStatus,
   requestPermission,
+  configureWearablesAudioSession,
+  activateWearablesAudioSession,
+  deactivateWearablesAudioSession,
   getDevices,
   getDevice,
   getRegistrationState,
@@ -354,7 +363,8 @@ Key types exported from the package:
 
 - `LogLevel` — `"debug"` \| `"info"` \| `"warn"` \| `"error"` \| `"none"`
 - `RegistrationState` — `"unavailable"` \| `"available"` \| `"registering"` \| `"registered"`
-- `Permission` — `"camera"`
+- `Permission` — `"camera"` \| `"microphone"`
+- `WearablesAudioSessionStatus` — `{ active, routedToBluetooth?, platformMicGranted? }`
 - `PermissionStatus` — `"granted"` \| `"denied"`
 - `Device` — `{ identifier, name, linkState, deviceType, compatibility }`
 - `DeviceType` — `"rayBanMeta"` \| `"oakleyMetaHSTN"` \| `"oakleyMetaVanguard"` \| `"metaRayBanDisplay"` \| `"rayBanMetaOptics"` \| `"unknown"`
@@ -421,12 +431,12 @@ addListener("onDisplayInteraction", ({ interactionId }) => {
 });
 ```
 
-| Function                       | Description                                                                 |
-| ------------------------------ | --------------------------------------------------------------------------- |
+| Function                                  | Description                                                                    |
+| ----------------------------------------- | ------------------------------------------------------------------------------ |
 | `createSession(id?, displayCapableOnly?)` | Create session; pass `displayCapableOnly: true` to auto-select display glasses |
-| `addDisplayToSession(id)`      | Explicitly attach Display (optional — `sendDisplayContent` does this)     |
-| `removeDisplayFromSession(id)` | Detach Display; session stays active; next send re-attaches                 |
-| `sendDisplayContent(id, tree)` | Auto-attach, wait for ready, render `DisplayContentNode` tree on lenses    |
+| `addDisplayToSession(id)`                 | Explicitly attach Display (optional — `sendDisplayContent` does this)          |
+| `removeDisplayFromSession(id)`            | Detach Display; session stays active; next send re-attaches                    |
+| `sendDisplayContent(id, tree)`            | Auto-attach, wait for ready, render `DisplayContentNode` tree on lenses        |
 
 **`DisplayContentNode` types:** `flexBox` (layout container), `text` (label), `button` (tappable), `image` (bitmap), `icon` (SDK icon).
 

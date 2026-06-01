@@ -17,6 +17,8 @@ type EMWDATPluginProps = {
   clientToken?: string;
   /** Custom NSBluetoothAlwaysUsageDescription text */
   bluetoothUsageDescription?: string;
+  /** Custom NSMicrophoneUsageDescription for HFP voice from glasses */
+  microphoneUsageDescription?: string;
   /** GitHub token for accessing Meta Wearables Maven packages. Falls back to GITHUB_TOKEN env var. */
   githubToken?: string;
   /** Enable the Device Access Toolkit App Model (DAM). Required for Display capability. Default: false. */
@@ -45,6 +47,9 @@ const withEMWDAT: ConfigPlugin<EMWDATPluginProps> = (config, props) => {
   const metaAppId = props.metaAppId ?? "";
   const bluetoothDescription =
     props.bluetoothUsageDescription ?? "This app uses Bluetooth to connect to Meta Wearables.";
+  const microphoneDescription =
+    props.microphoneUsageDescription ??
+    "This app uses the microphone on your Meta glasses for voice features.";
 
   // =========================================================================
   // iOS Configuration
@@ -132,6 +137,9 @@ done
     // NSBluetoothAlwaysUsageDescription
     plist.NSBluetoothAlwaysUsageDescription = bluetoothDescription;
 
+    // NSMicrophoneUsageDescription — required for HFP voice input from glasses
+    plist.NSMicrophoneUsageDescription = microphoneDescription;
+
     // MWDAT configuration dictionary
     const mwdatConfig: Record<string, string | boolean> = {
       AppLinkURLScheme: `${urlScheme}://`,
@@ -214,6 +222,8 @@ done
     };
     addPermission("android.permission.BLUETOOTH");
     addPermission("android.permission.BLUETOOTH_CONNECT");
+    addPermission("android.permission.RECORD_AUDIO");
+    addPermission("android.permission.MODIFY_AUDIO_SETTINGS");
     manifest.manifest["uses-permission"] = permissions;
 
     const application = manifest.manifest.application?.[0];

@@ -393,7 +393,7 @@ public final class WearablesManager {
         let status = try await Wearables.shared.requestPermission(permission)
 
         emitEvent("onPermissionStatusChange", [
-            "permission": permission == .camera ? "camera" : "unknown",
+            "permission": Self.permissionName(permission),
             "status": mapPermissionStatus(status)
         ])
 
@@ -442,6 +442,22 @@ public final class WearablesManager {
         case .registering: return "registering"
         case .registered: return "registered"
         @unknown default: return "unavailable"
+        }
+    }
+
+    public static func sdkPermission(from name: String) -> Permission? {
+        switch name {
+        case "camera": return .camera
+        case "microphone": return .microphone
+        default: return nil
+        }
+    }
+
+    public static func permissionName(_ permission: Permission) -> String {
+        switch permission {
+        case .camera: return "camera"
+        case .microphone: return "microphone"
+        @unknown default: return "unknown"
         }
     }
 

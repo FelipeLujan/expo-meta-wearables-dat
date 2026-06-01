@@ -305,7 +305,7 @@ object WearablesManager {
         }
         logger.info("Manager", "Requesting permission", mapOf("permission" to permission.toString()))
 
-        val permName = if (permission == Permission.CAMERA) "camera" else "unknown"
+        val permName = permissionToString(permission)
 
         // Return early if already granted
         val currentStatus = checkPermissionStatus(permission)

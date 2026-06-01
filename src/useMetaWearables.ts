@@ -26,8 +26,12 @@ import {
   addListener,
   addStreamToSession as nativeAddStreamToSession,
   capturePhoto as nativeCapturePhoto,
+  activateWearablesAudioSession as nativeActivateWearablesAudioSession,
   checkPermissionStatus as nativeCheckPermissionStatus,
   configure as nativeConfigure,
+  configureWearablesAudioSession as nativeConfigureWearablesAudioSession,
+  deactivateWearablesAudioSession as nativeDeactivateWearablesAudioSession,
+  isWearablesAudioSessionActive as nativeIsWearablesAudioSessionActive,
   createSession as nativeCreateSession,
   disableMockDeviceKit as nativeDisableMockDeviceKit,
   enableMockDeviceKit as nativeEnableMockDeviceKit,
@@ -89,6 +93,7 @@ export function useMetaWearables(options: UseMetaWearablesOptions = {}): UseMeta
   const isConfiguredRef = useRef(false);
   const registrationStateRef = useRef<RegistrationState>("unavailable");
   const permissionStatusRef = useRef<PermissionStatus>("denied");
+  const microphonePermissionStatusRef = useRef<PermissionStatus>("denied");
 
   // ---------------------------------------------------------------------------
   // State — drives re-renders
@@ -99,6 +104,9 @@ export function useMetaWearables(options: UseMetaWearablesOptions = {}): UseMeta
   const [configError, setConfigError] = useState<Error | null>(null);
   const [registrationState, setRegistrationState] = useState<RegistrationState>("unavailable");
   const [permissionStatus, setPermissionStatus] = useState<PermissionStatus>("denied");
+  const [microphonePermissionStatus, setMicrophonePermissionStatus] =
+    useState<PermissionStatus>("denied");
+  const [isWearablesAudioActive, setIsWearablesAudioActive] = useState(false);
   const [devices, setDevices] = useState<Device[]>([]);
   const [deviceSessionStates, setDeviceSessionStates] = useState<
     Record<string, DeviceSessionState>
@@ -126,6 +134,11 @@ export function useMetaWearables(options: UseMetaWearablesOptions = {}): UseMeta
     setPermissionStatus(v);
   }, []);
 
+  const syncMicrophonePermissionStatus = useCallback((v: PermissionStatus) => {
+    microphonePermissionStatusRef.current = v;
+    setMicrophonePermissionStatus(v);
+  }, []);
+
   // ---------------------------------------------------------------------------
   // Event subscriptions — single effect, empty deps (refs keep values fresh)
   // ---------------------------------------------------------------------------
@@ -141,11 +154,16 @@ export function useMetaWearables(options: UseMetaWearablesOptions = {}): UseMeta
           nativeCheckPermissionStatus("camera")
             .then((status) => syncPermissionStatus(status))
             .catch(() => syncPermissionStatus("denied"));
+          nativeCheckPermissionStatus("microphone")
+            .then((status) => syncMicrophonePermissionStatus(status))
+            .catch(() => syncMicrophonePermissionStatus("denied"));
           nativeGetDevices()
             .then((deviceList) => setDevices(deviceList))
             .catch(() => {});
         } else {
           syncPermissionStatus("denied");
+          syncMicrophonePermissionStatus("denied");
+          setIsWearablesAudioActive(false);
           setStreamState("stopped");
           setDeviceSessionStates({});
           setDeviceSessionErrors({});
@@ -182,6 +200,9 @@ export function useMetaWearables(options: UseMetaWearablesOptions = {}): UseMeta
       addListener("onPermissionStatusChange", (e) => {
         if (e.permission === "camera") {
           syncPermissionStatus(e.status);
+        }
+        if (e.permission === "microphone") {
+          syncMicrophonePermissionStatus(e.status);
         }
         callbacksRef.current.onPermissionStatusChange?.(e.permission, e.status);
       }),
@@ -355,9 +376,12 @@ export function useMetaWearables(options: UseMetaWearablesOptions = {}): UseMeta
       if (permission === "camera") {
         syncPermissionStatus(status);
       }
+      if (permission === "microphone") {
+        syncMicrophonePermissionStatus(status);
+      }
       return status;
     },
-    [syncPermissionStatus]
+    [syncPermissionStatus, syncMicrophonePermissionStatus]
   );
 
   const requestPermissionAction = useCallback(
@@ -502,6 +526,31 @@ export function useMetaWearables(options: UseMetaWearablesOptions = {}): UseMeta
   );
 
   // ---------------------------------------------------------------------------
+  // Audio (HFP) actions
+  // ---------------------------------------------------------------------------
+
+  const configureWearablesAudioSessionAction = useCallback(async () => {
+    if (!isConfiguredRef.current) {
+      throw new Error("SDK not configured. Call configure() first.");
+    }
+    return nativeConfigureWearablesAudioSession();
+  }, []);
+
+  const activateWearablesAudioSessionAction = useCallback(async () => {
+    if (!isConfiguredRef.current) {
+      throw new Error("SDK not configured. Call configure() first.");
+    }
+    const result = await nativeActivateWearablesAudioSession();
+    setIsWearablesAudioActive(nativeIsWearablesAudioSessionActive());
+    return result;
+  }, []);
+
+  const deactivateWearablesAudioSessionAction = useCallback(async () => {
+    await nativeDeactivateWearablesAudioSession();
+    setIsWearablesAudioActive(false);
+  }, []);
+
+  // ---------------------------------------------------------------------------
   // Return
   // ---------------------------------------------------------------------------
 
@@ -512,6 +561,8 @@ export function useMetaWearables(options: UseMetaWearablesOptions = {}): UseMeta
     configError,
     registrationState,
     permissionStatus,
+    microphonePermissionStatus,
+    isWearablesAudioActive,
     devices,
     deviceSessionStates,
     deviceSessionErrors,
@@ -530,6 +581,11 @@ export function useMetaWearables(options: UseMetaWearablesOptions = {}): UseMeta
     // Actions — permissions
     checkPermissionStatus: checkPermissionStatusAction,
     requestPermission: requestPermissionAction,
+
+    // Actions — audio (HFP)
+    configureWearablesAudioSession: configureWearablesAudioSessionAction,
+    activateWearablesAudioSession: activateWearablesAudioSessionAction,
+    deactivateWearablesAudioSession: deactivateWearablesAudioSessionAction,
 
     // Actions — devices
     getDevice,

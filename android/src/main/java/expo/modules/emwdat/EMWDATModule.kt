@@ -132,24 +132,55 @@ class EMWDATModule : Module() {
         // MARK: - Permissions
 
         AsyncFunction("checkPermissionStatus") { permission: String ->
-            if (permission != "camera") return@AsyncFunction "denied"
+            val sdkPermission = permissionFromString(permission) ?: return@AsyncFunction "denied"
             runBlocking {
-                WearablesManager.checkPermissionStatus(
-                    com.meta.wearable.dat.core.types.Permission.CAMERA
-                )
+                WearablesManager.checkPermissionStatus(sdkPermission)
             }
         }
 
         AsyncFunction("requestPermission") { permission: String ->
-            if (permission != "camera") throw Exception("Unknown permission: $permission")
+            val sdkPermission = permissionFromString(permission)
+                ?: throw Exception("Unknown permission: $permission")
             val activity = appContext.currentActivity
                 ?: throw Exception("Current activity not available")
             runBlocking {
-                WearablesManager.requestPermission(
+                WearablesManager.requestPermission(activity, sdkPermission)
+            }
+        }
+
+        // MARK: - Audio (HFP over Bluetooth)
+
+        AsyncFunction("configureWearablesAudioSession") {
+            val context = appContext.reactContext?.applicationContext
+                ?: throw Exception("Application context not available")
+            AudioSessionManager.configure(context)
+        }
+
+        AsyncFunction("activateWearablesAudioSession") {
+            val context = appContext.reactContext?.applicationContext
+                ?: throw Exception("Application context not available")
+            val activity = appContext.currentActivity
+            if (activity != null && ContextCompat.checkSelfPermission(
+                    activity, Manifest.permission.RECORD_AUDIO
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                ActivityCompat.requestPermissions(
                     activity,
-                    com.meta.wearable.dat.core.types.Permission.CAMERA
+                    arrayOf(Manifest.permission.RECORD_AUDIO),
+                    1002
                 )
             }
+            AudioSessionManager.activate(context)
+        }
+
+        AsyncFunction("deactivateWearablesAudioSession") {
+            val context = appContext.reactContext?.applicationContext
+                ?: throw Exception("Application context not available")
+            AudioSessionManager.deactivate(context)
+        }
+
+        Function("isWearablesAudioSessionActive") {
+            AudioSessionManager.isActive()
         }
 
         // MARK: - Devices

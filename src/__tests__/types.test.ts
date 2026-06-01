@@ -7,7 +7,25 @@ import type {
   DisplayErrorCode,
   DisplayContentNode,
   EMWDATPluginProps,
+  Permission,
+  WearablesAudioSessionStatus,
 } from "../EMWDAT.types";
+
+describe("permissions and audio types", () => {
+  it("Permission includes microphone", () => {
+    const perms: Permission[] = ["camera", "microphone"];
+    expect(perms).toHaveLength(2);
+  });
+
+  it("WearablesAudioSessionStatus shape", () => {
+    const status: WearablesAudioSessionStatus = {
+      active: true,
+      routedToBluetooth: true,
+      platformMicGranted: false,
+    };
+    expect(status.active).toBe(true);
+  });
+});
 
 describe("v0.5 type changes", () => {
   it("VideoCodec accepts 'hvc1' and 'raw'", () => {
