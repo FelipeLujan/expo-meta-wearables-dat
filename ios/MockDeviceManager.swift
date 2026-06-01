@@ -145,7 +145,7 @@ public final class MockDeviceManager {
     }
 
     private func mapPermission(_ permission: String) -> Permission? {
-        WearablesManager.sdkPermission(from: permission)
+        EMWDATPermissionMapping.sdkPermission(from: permission)
     }
 
     private func mapPermissionStatus(_ status: String) -> PermissionStatus? {

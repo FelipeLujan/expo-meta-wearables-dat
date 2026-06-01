@@ -151,7 +151,7 @@ public class EMWDATModule: Module {
         // MARK: - Permissions
 
         AsyncFunction("checkPermissionStatus") { (permission: String, promise: Promise) in
-            guard let sdkPermission = WearablesManager.sdkPermission(from: permission) else {
+            guard let sdkPermission = EMWDATPermissionMapping.sdkPermission(from: permission) else {
                 promise.resolve("denied")
                 return
             }
@@ -167,7 +167,7 @@ public class EMWDATModule: Module {
         }
 
         AsyncFunction("requestPermission") { (permission: String, promise: Promise) in
-            guard let sdkPermission = WearablesManager.sdkPermission(from: permission) else {
+            guard let sdkPermission = EMWDATPermissionMapping.sdkPermission(from: permission) else {
                 promise.reject("INVALID_PERMISSION", "Unknown permission: \(permission)")
                 return
             }
@@ -217,7 +217,7 @@ public class EMWDATModule: Module {
         }
 
         Function("isWearablesAudioSessionActive") {
-            AudioSessionManager.shared.isActive
+            AudioSessionManager.isActive
         }
 
         // MARK: - Devices
