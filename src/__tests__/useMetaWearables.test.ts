@@ -246,6 +246,7 @@ describe("requestPermission", () => {
 
   it("delegates when configured and registered", async () => {
     m.getRegistrationStateAsync.mockResolvedValue("registered");
+    m.checkPermissionStatus.mockResolvedValue("denied");
 
     const { result } = renderHook(() => useMetaWearables({ autoConfig: false }));
 
@@ -258,7 +259,30 @@ describe("requestPermission", () => {
       status = await result.current.requestPermission("camera");
     });
 
+    expect(m.checkPermissionStatus).toHaveBeenCalledWith("camera");
     expect(m.requestPermission).toHaveBeenCalledWith("camera");
+    expect(status).toBe("granted");
+  });
+
+  it("skips native request when check reports granted", async () => {
+    m.getRegistrationStateAsync.mockResolvedValue("registered");
+    m.checkPermissionStatus.mockResolvedValue("granted");
+
+    const { result } = renderHook(() => useMetaWearables({ autoConfig: false }));
+
+    await act(async () => {
+      await result.current.configure();
+    });
+
+    m.requestPermission.mockClear();
+
+    let status: string | undefined;
+    await act(async () => {
+      status = await result.current.requestPermission("camera");
+    });
+
+    expect(m.checkPermissionStatus).toHaveBeenCalledWith("camera");
+    expect(m.requestPermission).not.toHaveBeenCalled();
     expect(status).toBe("granted");
   });
 });
@@ -288,9 +312,7 @@ describe("session-based streaming", () => {
     expect(m.createSession).toHaveBeenCalled();
   });
 
-  it("addStreamToSession checks permission then delegates", async () => {
-    m.checkPermissionStatus.mockResolvedValue("granted");
-
+  it("addStreamToSession delegates to native", async () => {
     const { result } = renderHook(() => useMetaWearables({ autoConfig: false }));
     await configureRegistered(result);
 
@@ -300,40 +322,9 @@ describe("session-based streaming", () => {
       });
     });
 
-    expect(m.checkPermissionStatus).toHaveBeenCalledWith("camera");
     expect(m.addStreamToSession).toHaveBeenCalledWith("session-123", {
       resolution: "high",
     });
-  });
-
-  it("addStreamToSession requests permission if denied", async () => {
-    m.checkPermissionStatus.mockResolvedValue("denied");
-    m.requestPermission.mockResolvedValue("granted");
-
-    const { result } = renderHook(() => useMetaWearables({ autoConfig: false }));
-    await configureRegistered(result);
-
-    await act(async () => {
-      await result.current.addStreamToSession("session-123");
-    });
-
-    expect(m.requestPermission).toHaveBeenCalledWith("camera");
-    expect(m.addStreamToSession).toHaveBeenCalled();
-  });
-
-  it("addStreamToSession throws if permission denied after request", async () => {
-    m.checkPermissionStatus.mockResolvedValue("denied");
-    m.requestPermission.mockResolvedValue("denied");
-
-    const { result } = renderHook(() => useMetaWearables({ autoConfig: false }));
-    await configureRegistered(result);
-
-    await act(async () => {
-      await expect(result.current.addStreamToSession("session-123")).rejects.toThrow(
-        "Camera permission required"
-      );
-    });
-    expect(m.addStreamToSession).not.toHaveBeenCalled();
   });
 
   it("stopSession delegates to native", async () => {

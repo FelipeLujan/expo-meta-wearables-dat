@@ -33,7 +33,7 @@ declare class EMWDATNativeModule extends NativeModule<EMWDATModuleEvents> {
   getDevice(identifier: string): Promise<Device | null>;
 
   // Session-based streaming
-  createSession(deviceId?: string): Promise<string>;
+  createSession(deviceId?: string, displayCapableOnly?: boolean): Promise<string>;
   startSession(sessionId: string): Promise<void>;
   stopSession(sessionId: string): Promise<void>;
   addStreamToSession(sessionId: string, config: Partial<StreamSessionConfig>): Promise<void>;
@@ -147,9 +147,15 @@ export async function getDevice(identifier: string): Promise<Device | null> {
 // Session-based streaming
 // =============================================================================
 
-/** Create a new device session. Returns a sessionId. Optionally target a specific device. */
-export async function createSession(deviceId?: string): Promise<string> {
-  return EMWDATModule.createSession(deviceId);
+/**
+ * Create a new device session. Returns a sessionId.
+ * Pass `displayCapableOnly: true` (without deviceId) to auto-select Meta Ray-Ban Display glasses.
+ */
+export async function createSession(
+  deviceId?: string,
+  displayCapableOnly?: boolean
+): Promise<string> {
+  return EMWDATModule.createSession(deviceId, displayCapableOnly);
 }
 
 /** Start a previously created session. Connects to the device. */
@@ -292,7 +298,11 @@ export async function removeDisplayFromSession(sessionId: string): Promise<void>
   return EMWDATModule.removeDisplayFromSession(sessionId);
 }
 
-/** Send a UI content tree to the display. The root node must be a `flexBox`. */
+/**
+ * Send a UI content tree to the display. The root node must be a `flexBox`.
+ * Native layer auto-attaches the display capability when missing, waits for
+ * session/display readiness, then sends (DisplayAccess send() pattern).
+ */
 export async function sendDisplayContent(
   sessionId: string,
   contentTree: DisplayContentNode

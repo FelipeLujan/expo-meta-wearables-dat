@@ -16,7 +16,7 @@ public final class StreamSessionManager {
     // MARK: - State
 
     /// Active stream sessions keyed by sessionId
-    private var streams: [String: Stream] = [:]
+    private var streams: [String: MWDATCamera.Stream] = [:]
     private var stateTokens: [String: AnyListenerToken] = [:]
     private var frameTokens: [String: AnyListenerToken] = [:]
     private var errorTokens: [String: AnyListenerToken] = [:]
@@ -73,7 +73,9 @@ public final class StreamSessionManager {
         }
 
         // Add stream capability to the session
-        let streamSession = try session.addStream(configuration: config)
+        guard let streamSession = try session.addStream(config: config) else {
+            throw StreamSessionManagerError.streamNotFound(sessionId)
+        }
         streams[sessionId] = streamSession
 
         // Subscribe to state changes
@@ -282,6 +284,12 @@ public final class StreamSessionManager {
             return ["type": "hingesClosed"]
         case .thermalCritical:
             return ["type": "thermalCritical"]
+        case .thermalEmergency:
+            return ["type": "thermalEmergency"]
+        case .peakPowerShutdown:
+            return ["type": "peakPowerShutdown"]
+        case .batteryCritical:
+            return ["type": "batteryCritical"]
         @unknown default:
             return ["type": "internalError"]
         }
@@ -321,13 +329,11 @@ extension StreamSessionManager {
         }
 
         let frameRate = dict["frameRate"] as? Int ?? 15
-        let skipAppLaunch = dict["skipAppLaunch"] as? Bool ?? false
 
         return StreamConfiguration(
             videoCodec: videoCodec,
             resolution: resolution,
-            frameRate: UInt(frameRate),
-            skipAppLaunch: skipAppLaunch
+            frameRate: UInt(frameRate)
         )
     }
 }

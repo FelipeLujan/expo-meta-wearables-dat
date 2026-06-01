@@ -59,6 +59,40 @@ describe("v0.7 Display types", () => {
     expect(codes).toHaveLength(5);
   });
 
+  it("DisplayContentNode flexBox with layout props", () => {
+    const node: DisplayContentNode = {
+      type: "flexBox",
+      direction: "row",
+      gap: 12,
+      alignment: "center",
+      crossAlignment: "center",
+      flexGrow: 1,
+      paddingTop: 8,
+      background: "card",
+      wrap: true,
+      children: [
+        {
+          type: "button",
+          label: "Back",
+          style: "outline",
+          iconName: "arrowLeft",
+          onPressId: "back",
+        },
+        {
+          type: "image",
+          uri: "https://example.com/thumb.png",
+          sizePreset: "fill",
+          cornerRadius: "medium",
+        },
+      ],
+    };
+    expect(node.type).toBe("flexBox");
+    if (node.type === "flexBox") {
+      expect(node.crossAlignment).toBe("center");
+      expect(node.children).toHaveLength(2);
+    }
+  });
+
   it("DisplayContentNode flexBox with children", () => {
     const node: DisplayContentNode = {
       type: "flexBox",

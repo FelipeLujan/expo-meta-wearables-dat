@@ -197,10 +197,13 @@ public class EMWDATModule: Module {
 
         // MARK: - Session Management
 
-        AsyncFunction("createSession") { (deviceId: String?, promise: Promise) in
+        AsyncFunction("createSession") { (deviceId: String?, displayCapableOnly: Bool?, promise: Promise) in
             Task { @MainActor in
                 do {
-                    let sessionId = try WearablesManager.shared.createSession(deviceId: deviceId)
+                    let sessionId = try WearablesManager.shared.createSession(
+                        deviceId: deviceId,
+                        displayCapableOnly: displayCapableOnly ?? false
+                    )
                     promise.resolve(sessionId)
                 } catch {
                     promise.reject("SESSION_CREATE_FAILED", error.localizedDescription)

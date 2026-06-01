@@ -2,12 +2,21 @@ require 'json'
 
 package = JSON.parse(File.read(File.join(__dir__, '..', 'package.json')))
 
-# Load the spm_dependency helper from React Native
-react_native_path = File.join(
-  File.dirname(`node --print "require.resolve('react-native/package.json')"`),
-  "scripts/react_native_pods"
-)
-require react_native_path
+# Load only the SPM helper from the consuming app's React Native install.
+# Do NOT require react_native_pods.rb — the vendor package may ship its own
+# nested react-native, which would overwrite codegen paths and break pod install.
+unless defined?(SPM)
+  installation_root = Pod::Config.instance.installation_root
+  spm_helper = File.expand_path(
+    "../node_modules/react-native/scripts/cocoapods/spm.rb",
+    installation_root
+  )
+  require spm_helper
+end
+
+def spm_dependency(spec, url:, requirement:, products:)
+  SPM.dependency(spec, url: url, requirement: requirement, products: products)
+end
 
 Pod::Spec.new do |s|
   s.name           = 'EMWDAT'
@@ -17,7 +26,7 @@ Pod::Spec.new do |s|
   s.license        = package['license']
   s.author         = package['author']
   s.homepage       = package['homepage']
-  s.platforms      = { :ios => '16.0' }
+  s.platforms      = { :ios => '17.0' }
   s.swift_version  = '5.9'
   s.source         = { git: 'https://github.com/circus-kitchens/expo-meta-wearables-dat' }
   s.static_framework = true

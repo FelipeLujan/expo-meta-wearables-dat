@@ -273,6 +273,23 @@ export function useMetaWearables(options: UseMetaWearablesOptions = {}): UseMeta
 
   const configure = useCallback(async () => {
     if (isConfiguredRef.current) {
+      try {
+        const [regState, deviceList] = await Promise.all([
+          nativeGetRegistrationStateAsync(),
+          nativeGetDevices(),
+        ]);
+        syncRegistrationState(regState);
+        callbacksRef.current.onRegistrationStateChange?.(regState);
+        setDevices(deviceList);
+        if (regState === "registered") {
+          const perm = await nativeCheckPermissionStatus("camera").catch(
+            () => "denied" as PermissionStatus
+          );
+          syncPermissionStatus(perm);
+        }
+      } catch {
+        // Keep existing cached state if refresh fails.
+      }
       return;
     }
 
@@ -291,7 +308,15 @@ export function useMetaWearables(options: UseMetaWearablesOptions = {}): UseMeta
       ]);
 
       syncRegistrationState(regState);
+      callbacksRef.current.onRegistrationStateChange?.(regState);
       setDevices(deviceList);
+
+      if (regState === "registered") {
+        const perm = await nativeCheckPermissionStatus("camera").catch(
+          () => "denied" as PermissionStatus
+        );
+        syncPermissionStatus(perm);
+      }
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       setConfigError(error);
@@ -368,9 +393,22 @@ export function useMetaWearables(options: UseMetaWearablesOptions = {}): UseMeta
       if (registrationStateRef.current !== "registered") {
         throw new Error("Must be registered before requesting permissions.");
       }
-      return nativeRequestPermission(permission);
+
+      const current = await nativeCheckPermissionStatus(permission);
+      if (current === "granted") {
+        if (permission === "camera") {
+          syncPermissionStatus("granted");
+        }
+        return current;
+      }
+
+      const status = await nativeRequestPermission(permission);
+      if (permission === "camera") {
+        syncPermissionStatus(status);
+      }
+      return status;
     },
-    []
+    [syncPermissionStatus]
   );
 
   const getDevice = useCallback(async (identifier: DeviceIdentifier): Promise<Device | null> => {
@@ -390,15 +428,18 @@ export function useMetaWearables(options: UseMetaWearablesOptions = {}): UseMeta
   // Session-based streaming actions
   // ---------------------------------------------------------------------------
 
-  const createSession = useCallback(async (deviceId?: DeviceIdentifier): Promise<string> => {
-    if (!isConfiguredRef.current) {
-      throw new Error("SDK not configured. Call configure() first.");
-    }
-    if (registrationStateRef.current !== "registered") {
-      throw new Error("Must be registered before creating a session.");
-    }
-    return nativeCreateSession(deviceId);
-  }, []);
+  const createSession = useCallback(
+    async (deviceId?: DeviceIdentifier, displayCapableOnly?: boolean): Promise<string> => {
+      if (!isConfiguredRef.current) {
+        throw new Error("SDK not configured. Call configure() first.");
+      }
+      if (registrationStateRef.current !== "registered") {
+        throw new Error("Must be registered before creating a session.");
+      }
+      return nativeCreateSession(deviceId, displayCapableOnly);
+    },
+    []
+  );
 
   const startSession = useCallback(async (sessionId: string): Promise<void> => {
     await nativeStartSession(sessionId);
@@ -410,20 +451,9 @@ export function useMetaWearables(options: UseMetaWearablesOptions = {}): UseMeta
 
   const addStreamToSession = useCallback(
     async (sessionId: string, config?: Partial<StreamSessionConfig>): Promise<void> => {
-      // Verify camera permission before adding stream
-      const status = await nativeCheckPermissionStatus("camera");
-      if (status !== "granted") {
-        const requested = await nativeRequestPermission("camera");
-        syncPermissionStatus(requested as PermissionStatus);
-        if (requested !== "granted") {
-          throw new Error("Camera permission required for streaming.");
-        }
-      } else {
-        syncPermissionStatus("granted");
-      }
       await nativeAddStreamToSession(sessionId, config);
     },
-    [syncPermissionStatus]
+    []
   );
 
   const removeStreamFromSession = useCallback(async (sessionId: string): Promise<void> => {

@@ -37,7 +37,7 @@ Expo native module for integrating **Meta Wearables DAT** (Ray-Ban Meta smart gl
 | ---------------- | -------- |
 | React Native     | 0.76+    |
 | Expo SDK         | 52+      |
-| iOS              | 16.0+    |
+| iOS              | 17.0+    |
 | Android          | API 31+  |
 | Xcode            | 16+      |
 | Swift            | 5.9+     |
@@ -111,10 +111,8 @@ The plugin automatically configures:
 - `UIBackgroundModes` (`bluetooth-peripheral`, `external-accessory`)
 - `NSBluetoothAlwaysUsageDescription`
 - `MWDAT` configuration dictionary (including `TeamID` auto-resolved from Xcode's `DEVELOPMENT_TEAM` signing setting)
-- iOS deployment target to 16.0
+- iOS deployment target to 17.0
 - Embeds MWDATCamera & MWDATCore dynamic frameworks
-
-> **Note:** The native Meta Wearables DAT iOS SDK states iOS 17.0+ as its minimum. The podspec targets 16.0 and builds successfully, but runtime behavior on iOS 16 devices is unverified. We recommend iOS 17.0+ for production use.
 
 ### Android
 
@@ -391,32 +389,31 @@ Requires `damEnabled: true` in the config plugin and **Meta Ray-Ban Display glas
 
 ```ts
 import {
-  addDisplayToSession,
-  removeDisplayFromSession,
+  createSession,
+  startSession,
   sendDisplayContent,
+  removeDisplayFromSession,
 } from "expo-meta-wearables-dat";
 
-// After createSession() + startSession()...
-await addDisplayToSession(sessionId);
+// After configure() + registration...
+const sessionId = await createSession(deviceId, /* displayCapableOnly */ true);
+await startSession(sessionId);
 
-addListener("onDisplayStateChange", ({ sessionId, state }) => {
-  if (state === "started") {
-    sendDisplayContent(sessionId, {
-      type: "flexBox",
-      direction: "column",
-      gap: 12,
-      paddingAll: 16,
-      children: [
-        { type: "text", content: "Hello, glasses!", style: "heading" },
-        {
-          type: "button",
-          label: "Continue",
-          style: "primary",
-          onPressId: "btn-continue",
-        },
-      ],
-    });
-  }
+// Native layer auto-attaches display, waits for readiness, then sends
+await sendDisplayContent(sessionId, {
+  type: "flexBox",
+  direction: "column",
+  gap: 12,
+  paddingAll: 16,
+  children: [
+    { type: "text", content: "Hello, glasses!", style: "heading" },
+    {
+      type: "button",
+      label: "Continue",
+      style: "primary",
+      onPressId: "btn-continue",
+    },
+  ],
 });
 
 addListener("onDisplayInteraction", ({ interactionId }) => {
@@ -424,11 +421,12 @@ addListener("onDisplayInteraction", ({ interactionId }) => {
 });
 ```
 
-| Function                       | Description                                               |
-| ------------------------------ | --------------------------------------------------------- |
-| `addDisplayToSession(id)`      | Attach Display capability to a session                    |
-| `removeDisplayFromSession(id)` | Detach Display capability                                 |
-| `sendDisplayContent(id, tree)` | Render a `DisplayContentNode` tree on the glasses display |
+| Function                                  | Description                                                                    |
+| ----------------------------------------- | ------------------------------------------------------------------------------ |
+| `createSession(id?, displayCapableOnly?)` | Create session; pass `displayCapableOnly: true` to auto-select display glasses |
+| `addDisplayToSession(id)`                 | Explicitly attach Display (optional — `sendDisplayContent` does this)          |
+| `removeDisplayFromSession(id)`            | Detach Display; session stays active; next send re-attaches                    |
+| `sendDisplayContent(id, tree)`            | Auto-attach, wait for ready, render `DisplayContentNode` tree on lenses        |
 
 **`DisplayContentNode` types:** `flexBox` (layout container), `text` (label), `button` (tappable), `image` (bitmap), `icon` (SDK icon).
 
@@ -537,10 +535,10 @@ The `example/` directory contains a full demo app:
 
 ### Pod install fails / autolinking skips EMWDAT
 
-Ensure iOS deployment target is 16.0. The config plugin sets this automatically, but if you ran `expo prebuild --clean`, check that `ios/Podfile.properties.json` contains:
+Ensure iOS deployment target is 17.0. The config plugin sets this automatically, but if you ran `expo prebuild --clean`, check that `ios/Podfile.properties.json` contains:
 
 ```json
-{ "ios.deploymentTarget": "16.0" }
+{ "ios.deploymentTarget": "17.0" }
 ```
 
 ### `MWDATCamera` / `MWDATCore` framework not found at runtime

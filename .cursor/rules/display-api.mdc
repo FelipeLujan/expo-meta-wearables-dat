@@ -45,8 +45,12 @@ Camera-only apps leave `damEnabled` unset (default `false`).
 ## TypeScript API
 
 ```typescript
+await createSession(undefined, true); // optional displayCapableOnly when no deviceId
+await startSession(sessionId);
+await sendDisplayContent(sessionId, contentTree); // auto-attaches display, waits for ready, sends
+
+// Lower-level (optional):
 await addDisplayToSession(sessionId);
-await sendDisplayContent(sessionId, contentTree);
 await removeDisplayFromSession(sessionId);
 
 addListener("onDisplayStateChange", ({ sessionId, state }) => { /* stopped|starting|started|stopping */ });
@@ -74,24 +78,25 @@ Tap handling: set `onPressId` on `flexBox` or `button`; native emits `onDisplayI
 
 ### Android
 
-- `DisplaySessionManager.kt` — `session.addDisplay()`, state flow, `display.sendContent { }`
+- `DisplaySessionManager.kt` — waits for `DeviceSessionState.STARTED`, `session.addDisplay()`, waits for `DisplayState.STARTED`, `display.sendContent { }`
 - `DisplayContentBuilder.kt` — recursive `ContentScope` builder from `Map<String, Any>`
 
 ### iOS
 
-- `DisplaySessionManager.swift` — `session.addDisplay()`, `await display.start()`, `display.send(rootView)`
+- `DisplaySessionManager.swift` — waits for session `.started`, `session.addDisplay()`, `await display.start()`, waits for display `.started`, `display.send(rootView)`
 - `DisplayContentBuilder.swift` — builds `FlexBox`, `Text`, `Button`, etc. from `[String: Any]`
 
 Both wired in `EMWDATModule` with events `onDisplayStateChange`, `onDisplayInteraction`, `onDisplayError`.
 
 ## Usage flow
 
-1. `configure()` → register → `createSession()` → `startSession()`
-2. `addDisplayToSession(sessionId)`
-3. Wait for `onDisplayStateChange` → `state === "started"`
-4. `sendDisplayContent(sessionId, tree)`
-5. Handle `onDisplayInteraction` for taps
-6. `removeDisplayFromSession(sessionId)` or `stopSession(sessionId)`
+1. `configure()` → register → `createSession(deviceId?, displayCapableOnly?)` → `startSession(sessionId)`
+2. `sendDisplayContent(sessionId, tree)` — native layer auto-attaches display, waits for session/display readiness, then sends (DisplayAccess `send()` pattern)
+3. Handle `onDisplayInteraction` for taps
+4. `removeDisplayFromSession(sessionId)` to detach display while keeping session alive; `sendDisplayContent` re-attaches on next call
+5. `stopSession(sessionId)` to end the session
+
+Optional: call `addDisplayToSession(sessionId)` explicitly if you need attach without sending yet.
 
 ## Adding a new node type
 

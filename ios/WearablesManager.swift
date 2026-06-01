@@ -169,9 +169,15 @@ public final class WearablesManager {
                 }
                 deviceCompatibilityTokens[deviceId] = compatToken
 
-                // Session state listener (async in SDK 0.6)
+                // Session state listener (SDK 0.7: SessionManager.requestSessionHandle)
                 Task { [weak self] in
-                    let sessionToken = await Wearables.shared.addDeviceSessionStateListener(forDeviceId: deviceId) { [weak self] state in
+                    guard let wearablesPrivate = Wearables.shared as? WearablesPrivate else {
+                        self?.logger.warn("Manager", "SessionManager unavailable for device session state")
+                        return
+                    }
+                    let sessionToken = await wearablesPrivate.sessionManager.requestSessionHandle(
+                        forDeviceId: deviceId
+                    ) { [weak self] state in
                         Task { @MainActor in
                             self?.handleDeviceSessionStateChange(deviceId: deviceId, sessionState: state)
                         }
@@ -249,7 +255,8 @@ public final class WearablesManager {
     // MARK: - Session Management
 
     /// Create a new device session. Returns a unique sessionId.
-    public func createSession(deviceId: String? = nil) throws -> String {
+    /// When `displayCapableOnly` is true and no deviceId is given, auto-selects display glasses.
+    public func createSession(deviceId: String? = nil, displayCapableOnly: Bool = false) throws -> String {
         guard isConfigured else {
             throw WearablesManagerError.notConfigured
         }
@@ -258,6 +265,12 @@ public final class WearablesManager {
         if let deviceId = deviceId {
             deviceSelector = SpecificDeviceSelector(device: deviceId)
             logger.info("Manager", "Creating session for device", context: ["deviceId": deviceId])
+        } else if displayCapableOnly {
+            deviceSelector = AutoDeviceSelector(
+                wearables: Wearables.shared,
+                filter: { $0.supportsDisplay() }
+            )
+            logger.info("Manager", "Creating session with display-capable auto selector")
         } else {
             deviceSelector = AutoDeviceSelector(wearables: Wearables.shared)
             logger.info("Manager", "Creating session with auto device selector")
@@ -303,6 +316,7 @@ public final class WearablesManager {
         }
         logger.info("Manager", "Stopping session", context: ["sessionId": sessionId])
         session.stop()
+        removeSession(sessionId: sessionId)
     }
 
     /// Get the DeviceSession for a given sessionId (used by StreamSessionManager).
@@ -328,11 +342,6 @@ public final class WearablesManager {
             "sessionId": sessionId,
             "state": mapDeviceSessionState(state)
         ])
-
-        // Auto-clean stopped sessions
-        if state == .stopped {
-            removeSession(sessionId: sessionId)
-        }
     }
 
     private func handleSessionError(sessionId: String, error: DeviceSessionError) {
@@ -378,6 +387,18 @@ public final class WearablesManager {
     public func requestPermission(_ permission: Permission) async throws -> PermissionStatus {
         guard isConfigured else {
             throw WearablesManagerError.notConfigured
+        }
+
+        let currentStatus = try await Wearables.shared.checkPermissionStatus(permission)
+        if currentStatus == .granted {
+            logger.info("Manager", "Permission already granted, skipping request", context: [
+                "permission": String(describing: permission)
+            ])
+            emitEvent("onPermissionStatusChange", [
+                "permission": permission == .camera ? "camera" : "unknown",
+                "status": mapPermissionStatus(currentStatus)
+            ])
+            return currentStatus
         }
 
         logger.info("Manager", "Requesting permission", context: ["permission": String(describing: permission)])
@@ -507,6 +528,12 @@ public final class WearablesManager {
         case .capabilityAlreadyActive: return "capabilityAlreadyActive"
         case .capabilityNotFound: return "capabilityNotFound"
         case .unexpectedError(_): return "unexpectedError"
+        case .thermalCritical: return "thermalCritical"
+        case .thermalEmergency: return "thermalEmergency"
+        case .peakPowerShutdown: return "peakPowerShutdown"
+        case .batteryCritical: return "batteryCritical"
+        case .datAppOnTheGlassesUpdateRequired: return "datAppOnTheGlassesUpdateRequired"
+        case .dwaUnavailable: return "dwaUnavailable"
         @unknown default: return "unexpectedError"
         }
     }

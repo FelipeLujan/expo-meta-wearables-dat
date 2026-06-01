@@ -169,7 +169,7 @@ object WearablesManager {
 
     // MARK: - Session Management
 
-    fun createSession(deviceId: String?): String {
+    fun createSession(deviceId: String?, displayCapableOnly: Boolean = false): String {
         if (!isConfigured) {
             throw IllegalStateException("Wearables SDK has not been configured. Call configure() first.")
         }
@@ -177,6 +177,9 @@ object WearablesManager {
         val deviceSelector = if (deviceId != null) {
             logger.info("Manager", "Creating session for device", mapOf("deviceId" to deviceId))
             SpecificDeviceSelector(DeviceIdentifier(deviceId))
+        } else if (displayCapableOnly) {
+            logger.info("Manager", "Creating session with display-capable auto selector")
+            AutoDeviceSelector(filter = { device -> device.supportsDisplay() })
         } else {
             logger.info("Manager", "Creating session with auto device selector")
             AutoDeviceSelector()
@@ -222,6 +225,7 @@ object WearablesManager {
             ?: throw IllegalArgumentException("Session not found: $sessionId")
         logger.info("Manager", "Stopping session", mapOf("sessionId" to sessionId))
         session.stop()
+        removeSession(sessionId)
     }
 
     fun getSession(sessionId: String): DeviceSession? = sessions[sessionId]
@@ -246,11 +250,6 @@ object WearablesManager {
             "sessionId" to sessionId,
             "state" to mapped
         ))
-
-        // Auto-clean stopped sessions
-        if (state == DeviceSessionState.STOPPED) {
-            removeSession(sessionId)
-        }
     }
 
     private fun handleSessionError(sessionId: String, error: DeviceSessionError) {

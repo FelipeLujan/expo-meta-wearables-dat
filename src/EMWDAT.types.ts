@@ -213,22 +213,47 @@ export type DisplayErrorCode =
   | "renderingFailed"
   | "unexpectedError";
 
-export type DisplayContentDirection = "column" | "row";
+export type DisplayContentDirection = "column" | "row" | "columnReverse" | "rowReverse";
+export type DisplayContentAlignment = "start" | "center" | "end" | "stretch";
 export type DisplayTextStyle = "heading" | "body" | "meta";
 export type DisplayTextColor = "primary" | "secondary";
 export type DisplayButtonStyle = "primary" | "secondary" | "outline";
 export type DisplayImageSizePreset = "icon" | "fill";
 export type DisplayIconStyle = "filled" | "outline";
+export type DisplayCornerRadius = "none" | "small" | "medium";
+
+export type DisplayContentBackground = "card" | "none";
+
+/** Shared FlexBox props (root or nested). */
+export type DisplayFlexBoxProps = {
+  direction?: DisplayContentDirection;
+  gap?: number;
+  /** Main-axis alignment (row = horizontal, column = vertical). */
+  alignment?: DisplayContentAlignment;
+  /** Cross-axis alignment. */
+  crossAlignment?: DisplayContentAlignment;
+  paddingAll?: number;
+  paddingTop?: number;
+  paddingBottom?: number;
+  paddingStart?: number;
+  paddingEnd?: number;
+  onPressId?: string;
+  /** When `"card"`, renders the SDK card background. Defaults to none (SDK default). */
+  background?: DisplayContentBackground;
+  /** Wrap children to the next line (useful for button rows). */
+  wrap?: boolean;
+  /** Proportional grow when this flexBox is a child of another flexBox. */
+  flexGrow?: number;
+  flexShrink?: number;
+  /** Override parent crossAlignment for this flexBox child. */
+  alignSelf?: DisplayContentAlignment;
+};
 
 export type DisplayContentNode =
-  | {
+  | ({
       type: "flexBox";
-      direction?: DisplayContentDirection;
-      gap?: number;
-      paddingAll?: number;
-      onPressId?: string;
       children: DisplayContentNode[];
-    }
+    } & DisplayFlexBoxProps)
   | {
       type: "text";
       content: string;
@@ -240,11 +265,14 @@ export type DisplayContentNode =
       label: string;
       style?: DisplayButtonStyle;
       onPressId: string;
+      /** Built-in SDK icon (camelCase on iOS, e.g. `"checkmark"`, `"videoCamera"`). */
+      iconName?: string;
     }
   | {
       type: "image";
       uri: string;
       sizePreset?: DisplayImageSizePreset;
+      cornerRadius?: DisplayCornerRadius;
     }
   | {
       type: "icon";
@@ -379,7 +407,7 @@ export interface UseMetaWearablesReturn {
   refreshDevices: () => Promise<Device[]>;
 
   // Actions — session-based streaming
-  createSession: (deviceId?: DeviceIdentifier) => Promise<string>;
+  createSession: (deviceId?: DeviceIdentifier, displayCapableOnly?: boolean) => Promise<string>;
   startSession: (sessionId: string) => Promise<void>;
   stopSession: (sessionId: string) => Promise<void>;
   addStreamToSession: (sessionId: string, config?: Partial<StreamSessionConfig>) => Promise<void>;

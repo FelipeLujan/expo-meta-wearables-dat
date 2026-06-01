@@ -164,8 +164,8 @@ class EMWDATModule : Module() {
 
         // MARK: - Session Management
 
-        AsyncFunction("createSession") { deviceId: String? ->
-            WearablesManager.createSession(deviceId)
+        AsyncFunction("createSession") { deviceId: String?, displayCapableOnly: Boolean? ->
+            WearablesManager.createSession(deviceId, displayCapableOnly ?: false)
         }
 
         AsyncFunction("startSession") { sessionId: String ->
@@ -301,7 +301,9 @@ class EMWDATModule : Module() {
         // MARK: - Display
 
         AsyncFunction("addDisplayToSession") { sessionId: String ->
-            DisplaySessionManager.addDisplayToSession(sessionId)
+            runBlocking {
+                DisplaySessionManager.addDisplayToSession(sessionId)
+            }
         }
 
         AsyncFunction("removeDisplayFromSession") { sessionId: String ->

@@ -7,7 +7,7 @@ Agent guide for **expo-meta-wearables-dat** — Expo native module bridging Meta
 ## Quick facts
 
 - **SDK**: DAT 0.7.0 (`mwdat-core`, `mwdat-camera`, `mwdat-display`, `mwdat-mockdevice`)
-- **Platforms**: iOS 16+ / Android API 31+ native; web stubs throw
+- **Platforms**: iOS 17+ / Android API 31+ native; web stubs throw
 - **Not Expo Go** — requires dev client (`expo prebuild` + `expo run:*`)
 - **pnpm only** — `packageManager: pnpm@10.29.2`; husky pre-commit calls `pnpm lint-staged`
 

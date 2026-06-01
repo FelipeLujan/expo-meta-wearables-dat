@@ -50,9 +50,9 @@ const withEMWDAT: ConfigPlugin<EMWDATPluginProps> = (config, props) => {
   // iOS Configuration
   // =========================================================================
 
-  // Set iOS deployment target to 16.0 (required by Meta Wearables DAT SDK)
+  // Set iOS deployment target to 17.0 (required by Meta Wearables DAT SDK)
   config = withPodfileProperties(config, (config) => {
-    config.modResults["ios.deploymentTarget"] = "16.0";
+    config.modResults["ios.deploymentTarget"] = "17.0";
     return config;
   });
 
@@ -65,7 +65,7 @@ const withEMWDAT: ConfigPlugin<EMWDATPluginProps> = (config, props) => {
     for (const key in configurations) {
       const buildSettings = configurations[key].buildSettings;
       if (buildSettings?.PRODUCT_BUNDLE_IDENTIFIER) {
-        buildSettings.IPHONEOS_DEPLOYMENT_TARGET = "16.0";
+        buildSettings.IPHONEOS_DEPLOYMENT_TARGET = "17.0";
       }
     }
 
