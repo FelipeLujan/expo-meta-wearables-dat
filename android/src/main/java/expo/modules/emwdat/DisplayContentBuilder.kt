@@ -9,7 +9,7 @@ import com.meta.wearable.dat.display.views.FlexBoxBackground
 import com.meta.wearable.dat.display.views.FlexBoxScope
 import com.meta.wearable.dat.display.views.IconName
 import com.meta.wearable.dat.display.views.IconStyle
-import com.meta.wearable.dat.display.views.ImageSizePreset
+import com.meta.wearable.dat.display.views.ImageSize
 import com.meta.wearable.dat.display.views.TextColor
 import com.meta.wearable.dat.display.views.TextStyle
 
@@ -43,8 +43,8 @@ object DisplayContentBuilder {
     ) {
         val direction = parseDirection(node["direction"])
         val gap = (node["gap"] as? Number)?.toInt() ?: 0
-        val alignment = parseAlignment(node["alignment"])
-        val crossAlignment = parseAlignment(node["crossAlignment"])
+        val alignment = parseAlignment(node["alignment"] as? String)
+        val crossAlignment = parseAlignment(node["crossAlignment"] as? String)
         val wrap = (node["wrap"] as? Boolean) ?: false
         val onPressId = node["onPressId"] as? String
         val background = if ((node["background"] as? String) == "card") {
@@ -149,8 +149,8 @@ object DisplayContentBuilder {
     private fun buildImage(scope: FlexBoxScope, node: Map<String, Any>) {
         val uri = node["uri"] as? String ?: return
         val sizePreset = when (node["sizePreset"] as? String) {
-            "icon" -> ImageSizePreset.ICON
-            else -> ImageSizePreset.FILL
+            "icon" -> ImageSize.ICON
+            else -> ImageSize.FILL
         }
         val cornerRadius = when (node["cornerRadius"] as? String) {
             "small" -> CornerRadius.SMALL

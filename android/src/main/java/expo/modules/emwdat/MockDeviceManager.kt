@@ -104,14 +104,14 @@ object MockDeviceManager {
     fun setCameraFeed(id: String, fileUrl: String) {
         val device = getDevice(id)
         val uri = parseUri(fileUrl)
-        device.services.cameraKit.setCameraFeed(uri)
+        device.services.camera.setCameraFeed(uri)
         logger.info("MockDeviceManager", "Set camera feed", mapOf("id" to id, "uri" to uri.toString()))
     }
 
     fun setCapturedImage(id: String, fileUrl: String) {
         val device = getDevice(id)
         val uri = parseUri(fileUrl)
-        device.services.cameraKit.setCapturedImage(uri)
+        device.services.camera.setCapturedImage(uri)
         logger.info("MockDeviceManager", "Set captured image", mapOf("id" to id, "uri" to uri.toString()))
     }
 
@@ -120,7 +120,7 @@ object MockDeviceManager {
     fun setCameraFeedFromCamera(id: String, facing: String) {
         val device = getDevice(id)
         val cameraFacing = if (facing == "back") CameraFacing.BACK else CameraFacing.FRONT
-        device.services.cameraKit.setCameraFeed(cameraFacing)
+        device.services.camera.setCameraFeed(cameraFacing)
         logger.info("MockDeviceManager", "Set camera feed from camera", mapOf("id" to id, "facing" to facing))
     }
 

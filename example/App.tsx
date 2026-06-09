@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { File as ExpoFile } from "expo-file-system";
-import { useMetaWearables } from "expo-meta-wearables-dat";
+import { useMetaWearables, addListener } from "expo-meta-wearables-dat";
 import type {
   PhotoData,
   PhotoCaptureFormat,
@@ -292,7 +292,36 @@ export default function App() {
               }
               const sessionId = await createSession(selectedDeviceId ?? undefined);
               setCurrentSessionId(sessionId);
+
+              // Set up listener BEFORE starting session to avoid missing the state event
+              const sessionStarted = new Promise<void>((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                  unsub.remove();
+                  reject(new Error("Session start timed out after 15s. Is the device connected?"));
+                }, 15000);
+
+                let unsub = addListener("onDeviceSessionStateChange", (e) => {
+                  addLogEntry(`Session ${e.sessionId.slice(0,8)}… → ${e.state}`, "#60a5fa");
+                  if (e.sessionId === sessionId && e.state === "started") {
+                    clearTimeout(timeout);
+                    unsub.remove();
+                    resolve();
+                  } else if (e.sessionId === sessionId && e.state === "stopped") {
+                    clearTimeout(timeout);
+                    unsub.remove();
+                    reject(new Error("Session stopped unexpectedly. Is the device connected and in range?"));
+                  }
+                });
+              });
+
+              // NOW start the session (listener is already registered)
+              addLogEntry("Starting session...", "#f59e0b");
               await startSession(sessionId);
+
+              // Wait for session to reach "started"
+              await sessionStarted;
+
+              addLogEntry("Session started, adding stream...", "#22c55e");
               await addStreamToSession(sessionId, {
                 resolution,
                 frameRate,
