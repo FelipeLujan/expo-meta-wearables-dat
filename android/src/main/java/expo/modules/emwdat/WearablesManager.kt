@@ -179,7 +179,7 @@ object WearablesManager {
             SpecificDeviceSelector(DeviceIdentifier(deviceId))
         } else if (displayCapableOnly) {
             logger.info("Manager", "Creating session with display-capable auto selector")
-            AutoDeviceSelector(filter = { device -> device.supportsDisplay() })
+            AutoDeviceSelector(filter = { device -> device.deviceType == DeviceType.META_RAYBAN_DISPLAY })
         } else {
             logger.info("Manager", "Creating session with auto device selector")
             AutoDeviceSelector()
@@ -188,7 +188,7 @@ object WearablesManager {
         var session: DeviceSession? = null
         Wearables.createSession(deviceSelector).fold(
             onSuccess = { s -> session = s },
-            onFailure = { error -> throw Exception("Failed to create session: $error") }
+            onFailure = { error, _ -> throw Exception("Failed to create session: $error") }
         )
         val activeSession = session ?: throw Exception("Failed to create session")
         val sessionId = UUID.randomUUID().toString()
@@ -224,11 +224,17 @@ object WearablesManager {
         val session = sessions[sessionId]
             ?: throw IllegalArgumentException("Session not found: $sessionId")
         logger.info("Manager", "Stopping session", mapOf("sessionId" to sessionId))
-        session.stop()
+        try {
+            session.stop()
+        } catch (e: Exception) {
+            logger.debug("Manager", "session.stop() failed", mapOf("error" to e.message.orEmpty()))
+        }
         removeSession(sessionId)
     }
 
     fun getSession(sessionId: String): DeviceSession? = sessions[sessionId]
+
+    fun getActiveSessions(): List<String> = sessions.keys.toList()
 
     fun removeSession(sessionId: String) {
         sessionStateJobs[sessionId]?.cancel()
@@ -384,8 +390,8 @@ object WearablesManager {
     }
 
     private fun mapPermissionStatus(status: PermissionStatus): String = when (status) {
-        PermissionStatus.GRANTED -> "granted"
-        PermissionStatus.DENIED -> "denied"
+        is PermissionStatus.Granted -> "granted"
+        is PermissionStatus.Denied -> "denied"
         else -> "denied"
     }
 
@@ -421,7 +427,6 @@ object WearablesManager {
         DeviceSessionError.SESSION_ALREADY_EXISTS -> "sessionAlreadyExists"
         DeviceSessionError.SESSION_ALREADY_STOPPED -> "sessionAlreadyStopped"
         DeviceSessionError.SESSION_IDLE -> "sessionIdle"
-        DeviceSessionError.CAPABILITY_ALREADY_ACTIVE -> "capabilityAlreadyActive"
         DeviceSessionError.CAPABILITY_NOT_FOUND -> "capabilityNotFound"
         else -> "unexpectedError"
     }

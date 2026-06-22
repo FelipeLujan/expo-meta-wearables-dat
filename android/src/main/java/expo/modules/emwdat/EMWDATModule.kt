@@ -231,6 +231,10 @@ class EMWDATModule : Module() {
             WearablesManager.stopSession(sessionId)
         }
 
+        AsyncFunction("getActiveSessions") {
+            WearablesManager.getActiveSessions()
+        }
+
         AsyncFunction("addStreamToSession") { sessionId: String, config: Map<String, Any> ->
             StreamSessionManager.addStreamToSession(sessionId, config)
         }
