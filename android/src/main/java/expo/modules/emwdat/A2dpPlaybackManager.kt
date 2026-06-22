@@ -19,7 +19,7 @@ object A2dpPlaybackManager {
         return mapOf(
             "active" to isActive,
             "a2dpDeviceAvailable" to a2dpAvailable,
-            "routedToBluetooth" to isActive && a2dpAvailable
+            "routedToBluetooth" to (isActive && a2dpAvailable)
         )
     }
 

@@ -8,6 +8,8 @@ import android.graphics.Rect
 import android.graphics.YuvImage
 import androidx.exifinterface.media.ExifInterface
 import com.meta.wearable.dat.camera.Stream
+import com.meta.wearable.dat.camera.addStream
+import com.meta.wearable.dat.camera.removeStream
 import com.meta.wearable.dat.camera.types.CaptureError
 import com.meta.wearable.dat.camera.types.PhotoData
 import com.meta.wearable.dat.camera.types.StreamConfiguration
@@ -81,31 +83,36 @@ object StreamSessionManager {
             "compressVideo" to compressVideo
         ))
 
-        val stream = session.addStream(streamConfig)
-        streams[sessionId] = stream
+        var stream: Stream? = null
+        session.addStream(streamConfig).fold(
+            onSuccess = { s -> stream = s },
+            onFailure = { error, _ -> throw Exception("Failed to add stream: $error") }
+        )
+        val activeStream = stream ?: throw Exception("Failed to add stream")
+        streams[sessionId] = activeStream
 
         val currentScope = scope ?: throw IllegalStateException("Module scope not available")
 
         // Start the stream (required in 0.7+)
-        currentScope.launch { stream.start() }
+        currentScope.launch { activeStream.start() }
 
         // Collect video frames
         videoJobs[sessionId] = currentScope.launch {
-            stream.videoStream.collect { frame ->
+            activeStream.videoStream.collect { frame ->
                 handleVideoFrame(sessionId, frame)
             }
         }
 
         // Collect state changes
         stateJobs[sessionId] = currentScope.launch {
-            stream.state.collect { state ->
+            activeStream.state.collect { state ->
                 handleStateChange(sessionId, state)
             }
         }
 
         // Collect errors
         errorJobs[sessionId] = currentScope.launch {
-            stream.errorStream.collect { error ->
+            activeStream.errorStream.collect { error ->
                 logger.error("StreamSession", "Stream error", mapOf(
                     "sessionId" to sessionId,
                     "error" to error.toString()
@@ -124,9 +131,15 @@ object StreamSessionManager {
     }
 
     fun removeStreamFromSession(sessionId: String) {
-        val session = WearablesManager.getSession(sessionId)
-        session?.removeStream()
+        // Cancel collection jobs first to prevent callbacks after cleanup
         destroyStream(sessionId)
+
+        try {
+            val session = WearablesManager.getSession(sessionId)
+            session?.removeStream()
+        } catch (e: Exception) {
+            logger.debug("StreamSession", "removeStream failed (expected if session already stopped)", mapOf("error" to e.message.orEmpty()))
+        }
 
         emitEvent("onCapabilityStateChange", mapOf(
             "sessionId" to sessionId,
@@ -148,7 +161,7 @@ object StreamSessionManager {
             onSuccess = { photoData ->
                 handlePhotoCapture(context, photoData, format)
             },
-            onFailure = { error ->
+            onFailure = { error, _ ->
                 val msg = when (error) {
                     is CaptureError.DeviceDisconnected -> "Device disconnected"
                     is CaptureError.NotStreaming -> "Not streaming"

@@ -3,7 +3,9 @@ package expo.modules.emwdat
 import com.meta.wearable.dat.core.session.DeviceSession
 import com.meta.wearable.dat.core.session.DeviceSessionState
 import com.meta.wearable.dat.display.Display
-import com.meta.wearable.dat.display.DisplayConfiguration
+import com.meta.wearable.dat.display.addDisplay
+import com.meta.wearable.dat.display.removeDisplay
+import com.meta.wearable.dat.display.types.DisplayConfiguration
 import com.meta.wearable.dat.display.types.DisplayError
 import com.meta.wearable.dat.display.types.DisplayState
 import kotlinx.coroutines.CoroutineScope
@@ -38,8 +40,10 @@ object DisplaySessionManager {
     }
 
     fun removeDisplayFromSession(sessionId: String) {
-        displays[sessionId]?.stop()
-        WearablesManager.getSession(sessionId)?.removeDisplay()
+        val display = displays[sessionId]
+        display?.stop()
+        val session = WearablesManager.getSession(sessionId)
+        session?.removeDisplay()
         destroyDisplay(sessionId)
         emitEvent("onDisplayStateChange", mapOf("sessionId" to sessionId, "state" to "stopped"))
         logger.info("Display", "Display removed from session", mapOf("sessionId" to sessionId))
@@ -70,7 +74,7 @@ object DisplaySessionManager {
 
         result.fold(
             onSuccess = { /* sent */ },
-            onFailure = { error ->
+            onFailure = { error, _ ->
                 val errorCode = mapDisplayError(error)
                 emitEvent("onDisplayError", mapOf("sessionId" to sessionId, "error" to errorCode))
                 throw Exception("sendDisplayContent failed: $error")
@@ -93,7 +97,7 @@ object DisplaySessionManager {
             var display: Display? = null
             session.addDisplay(DisplayConfiguration()).fold(
                 onSuccess = { d -> display = d },
-                onFailure = { error -> throw Exception("Failed to add display: $error") }
+                onFailure = { error, _ -> throw Exception("Failed to add display: $error") }
             )
             val activeDisplay = display ?: throw Exception("Failed to add display to session")
             displays[sessionId] = activeDisplay
