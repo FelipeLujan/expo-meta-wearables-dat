@@ -174,6 +174,23 @@ object WearablesManager {
             throw IllegalStateException("Wearables SDK has not been configured. Call configure() first.")
         }
 
+        // Clean up any existing tracked sessions before creating a new one.
+        // The SDK only allows one active DeviceSession at a time.
+        if (sessions.isNotEmpty()) {
+            logger.info("Manager", "Cleaning up existing sessions before creating new one",
+                mapOf("count" to sessions.size))
+            for (sid in sessions.keys.toList()) {
+                try {
+                    sessions[sid]?.stop()
+                } catch (e: Exception) {
+                    logger.debug("Manager", "Pre-cleanup session.stop() failed (expected)", mapOf("error" to e.message.orEmpty()))
+                }
+                removeSession(sid)
+            }
+            // Also clean up any streams tied to old sessions
+            StreamSessionManager.destroy()
+        }
+
         val deviceSelector = if (deviceId != null) {
             logger.info("Manager", "Creating session for device", mapOf("deviceId" to deviceId))
             SpecificDeviceSelector(DeviceIdentifier(deviceId))
@@ -186,10 +203,40 @@ object WearablesManager {
         }
 
         var session: DeviceSession? = null
+        var lastError: String? = null
         Wearables.createSession(deviceSelector).fold(
             onSuccess = { s -> session = s },
-            onFailure = { error, _ -> throw Exception("Failed to create session: $error") }
+            onFailure = { error, _ -> lastError = error.toString() }
         )
+
+        // If SESSION_ALREADY_EXISTS, retry once after brief pause.
+        if (session == null && lastError?.contains("SESSION_ALREADY_EXISTS") == true) {
+            logger.info("Manager", "SESSION_ALREADY_EXISTS — retrying after brief pause")
+            Thread.sleep(200)
+            Wearables.createSession(deviceSelector).fold(
+                onSuccess = { s -> session = s },
+                onFailure = { error, _ -> lastError = error.toString() }
+            )
+        }
+
+        // If NO_ELIGIBLE_DEVICE with auto selector, fall back to the first connected device.
+        // AutoDeviceSelector() may not match newer device types like META_RAYBAN_DISPLAY.
+        if (session == null && lastError?.contains("NO_ELIGIBLE_DEVICE") == true && deviceId == null) {
+            val firstDevice = currentDevices.firstOrNull()
+            if (firstDevice != null) {
+                logger.info("Manager", "Auto selector failed, falling back to first device",
+                    mapOf("deviceId" to firstDevice.toString()))
+                Wearables.createSession(SpecificDeviceSelector(firstDevice)).fold(
+                    onSuccess = { s -> session = s },
+                    onFailure = { error, _ -> lastError = error.toString() }
+                )
+            }
+        }
+
+        if (session == null) {
+            throw Exception("Failed to create session: $lastError")
+        }
+
         val activeSession = session ?: throw Exception("Failed to create session")
         val sessionId = UUID.randomUUID().toString()
         sessions[sessionId] = activeSession
@@ -256,6 +303,14 @@ object WearablesManager {
             "sessionId" to sessionId,
             "state" to mapped
         ))
+
+        // Auto-cleanup when session stops (e.g., BT disconnect, device removed).
+        // This prevents stale sessions from blocking new session creation.
+        if (mapped == "stopped" && sessions.containsKey(sessionId)) {
+            logger.info("Manager", "Auto-cleaning stopped session", mapOf("sessionId" to sessionId))
+            StreamSessionManager.destroyStream(sessionId)
+            removeSession(sessionId)
+        }
     }
 
     private fun handleSessionError(sessionId: String, error: DeviceSessionError) {

@@ -11,6 +11,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
@@ -248,9 +249,10 @@ class EMWDATModule : Module() {
         AsyncFunction("capturePhoto") { format: String ->
             val context = appContext.reactContext?.applicationContext
                 ?: throw Exception("Application context not available")
-            runBlocking {
-                StreamSessionManager.capturePhoto(context, format)
-            }
+            // Launch capture on the stream's own scope (Main dispatcher)
+            // and wait for the result on this background thread.
+            val deferred = StreamSessionManager.capturePhotoOnScope(context, format)
+            runBlocking { deferred.await() }
             null
         }
 

@@ -16,6 +16,7 @@ import com.meta.wearable.dat.camera.types.StreamConfiguration
 import com.meta.wearable.dat.camera.types.StreamState
 import com.meta.wearable.dat.camera.types.VideoFrame
 import com.meta.wearable.dat.camera.types.VideoQuality
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -155,23 +156,68 @@ object StreamSessionManager {
             ?: throw Exception("No active stream session")
 
         logger.info("StreamSession", "Capturing photo", mapOf("requestedFormat" to format))
-        val result = stream.capturePhoto()
 
-        result.fold(
-            onSuccess = { photoData ->
-                handlePhotoCapture(context, photoData, format)
-            },
-            onFailure = { error, _ ->
-                val msg = when (error) {
-                    is CaptureError.DeviceDisconnected -> "Device disconnected"
-                    is CaptureError.NotStreaming -> "Not streaming"
-                    is CaptureError.CaptureInProgress -> "Capture already in progress"
-                    is CaptureError.CaptureFailed -> "Capture failed"
-                }
-                logger.error("StreamSession", "Photo capture failed", mapOf("error" to msg))
-                throw Exception("Photo capture failed: $msg")
+        // Retry up to 2 times — BT-based capture can be flaky as the glasses
+        // need to switch from streaming mode to capture mode.
+        var lastError: String = "Unknown error"
+        for (attempt in 1..3) {
+            if (attempt > 1) {
+                logger.info("StreamSession", "Retrying photo capture", mapOf("attempt" to attempt))
+                kotlinx.coroutines.delay(500)
             }
-        )
+
+            val result = stream.capturePhoto()
+            var success = false
+            result.fold(
+                onSuccess = { photoData ->
+                    handlePhotoCapture(context, photoData, format)
+                    success = true
+                },
+                onFailure = { error, _ ->
+                    lastError = when (error) {
+                        is CaptureError.DeviceDisconnected -> "Device disconnected"
+                        is CaptureError.NotStreaming -> "Not streaming"
+                        is CaptureError.CaptureInProgress -> "Capture already in progress"
+                        is CaptureError.CaptureFailed -> "Capture failed"
+                    }
+                    logger.warn("StreamSession", "Photo capture attempt failed", mapOf(
+                        "attempt" to attempt,
+                        "error" to lastError
+                    ))
+                }
+            )
+            if (success) return
+        }
+
+        logger.error("StreamSession", "Photo capture failed after retries", mapOf("error" to lastError))
+        throw Exception("Photo capture failed: $lastError")
+    }
+
+    /**
+     * Launches capturePhoto on the same CoroutineScope the stream was started
+     * on (moduleScope / Main dispatcher). The SDK's stream.capturePhoto()
+     * checks internal device-connected state that is only valid when called
+     * from the scope that owns the stream.
+     *
+     * Returns a CompletableDeferred so the caller can bridge the result back
+     * to a blocking Expo AsyncFunction thread.
+     */
+    fun capturePhotoOnScope(context: Context, format: String): CompletableDeferred<Unit> {
+        val deferred = CompletableDeferred<Unit>()
+        val currentScope = scope
+            ?: run {
+                deferred.completeExceptionally(Exception("Module scope not available"))
+                return deferred
+            }
+        currentScope.launch {
+            try {
+                capturePhoto(context, format)
+                deferred.complete(Unit)
+            } catch (e: Exception) {
+                deferred.completeExceptionally(e)
+            }
+        }
+        return deferred
     }
 
     // MARK: - Frame Handling
@@ -345,7 +391,7 @@ object StreamSessionManager {
 
     // MARK: - Cleanup
 
-    private fun destroyStream(sessionId: String) {
+    internal fun destroyStream(sessionId: String) {
         videoJobs[sessionId]?.cancel()
         videoJobs.remove(sessionId)
         stateJobs[sessionId]?.cancel()
